@@ -109,8 +109,15 @@ Template:
   the real surfaces, but the title's vertex program writes `w = inf`
   (`out0 pos 64.5312 208.531 0 inf`), so `raster_xf_clipped` rejects every
   triangle and the frame stays black. Root cause recorded; not fixed in v0.1.
-- Input: the guest never touches OHCI MMIO and never calls the host pad
-  bridge, so the pad cache stays `0xFFFFFFFF`. Not wired for v0.1.
+- Input: `xbox_OhciInit()` had no caller, so the OHCI trap was never armed and
+  the guest read plain zeroed RAM at `0xFED00000` and concluded there was no
+  controller. It is now called at the end of `xbox_kernel_bridge_init()`, after
+  the guest memory is mapped, still opt-in behind `RECOMP_USB`. With the flag
+  the controller reports `operational after 20 ms`, the pad enumerates and
+  input reports are served (20 s run: 9 periodic transfers, 9 reports, 29
+  control setups, 39 control completions). The title does not yet poll the pad
+  — its state block stays `0xFFFFFFFF` — so controls are still not usable in
+  v0.1, but the device path is now live instead of absent.
 - Packaging: the runtime changes are committed on the toolkit branch
   `otogi1-linux-v0.1` and shipped as `xboxrecomp-linux.patch` (applies cleanly
   to upstream `v0.15.0`). `CMakeLists.txt` and `.gitignore` are now tracked;

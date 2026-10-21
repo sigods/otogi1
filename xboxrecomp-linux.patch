@@ -1,39 +1,3 @@
-From 4363443029e93eef08d932d7b708853807130621 Mon Sep 17 00:00:00 2001
-From: Otogi Recomp <recomp@localhost>
-Date: Tue, 20 Oct 2026 22:59:47 -0300
-Subject: [PATCH] Linux/x86-64 support for the Otogi v0.1 preview
-
-- platform: add mmio_decode_x86_64.h and route APU/AC'97 and OHCI
-  register access through the arch-neutral decoder, so guest MMIO no
-  longer faults on x86-64.
-- kernel: default NtReadFile async completion to STATUS_PENDING; the
-  title's streamed-BGM loop only advances on a pending read, so inline
-  completion left audio silent. RECOMP_SYNC_IO=1 restores the old path.
-- kernel: report real unresolved kernel imports instead of reading the
-  wrong thunk field.
-- nv2a: resolve vertex-fetch addresses through dma_resolve before use.
-- apu/audio/input: Linux backends and the env-gated pad bridge.
----
- src/apu/apu_mmio_hook.c           |  22 +-
- src/audio/dsound_device.c         |  66 +++--
- src/input/keyboard.c              |  18 ++
- src/input/xinput_device.c         | 245 +++++++++++++++-
- src/input/xinput_xbox.h           |  17 ++
- src/kernel/kernel.h               |   7 +
- src/kernel/kernel_bridge.c        | 294 ++++++++++++++++---
- src/kernel/kernel_file.c          |  72 +++++
- src/kernel/kernel_path.c          |  86 ++++++
- src/kernel/kernel_sync.c          |  90 +++++-
- src/kernel/kernel_thunks.c        |  51 +++-
- src/kernel/nv2a_pb_exec.c         |  24 +-
- src/kernel/xbox_memory_layout.c   | 169 ++++++++++-
- src/kernel/xbox_memory_layout.h   |   6 +
- src/platform/mmio_decode_a64.h    |   5 +
- src/platform/mmio_decode_x86_64.h | 450 ++++++++++++++++++++++++++++++
- src/usb/ohci.c                    |  23 +-
- 17 files changed, 1532 insertions(+), 113 deletions(-)
- create mode 100644 src/platform/mmio_decode_x86_64.h
-
 diff --git a/src/apu/apu_mmio_hook.c b/src/apu/apu_mmio_hook.c
 index 235140f..79841fb 100644
 --- a/src/apu/apu_mmio_hook.c
@@ -635,7 +599,7 @@ index 4a6389d..ae760b8 100644
  NTSTATUS __stdcall xbox_KeWaitForMultipleObjects(ULONG Count, PVOID Objects[], ULONG WaitType, ULONG WaitReason, KPROCESSOR_MODE WaitMode, BOOLEAN Alertable, PLARGE_INTEGER Timeout, PVOID WaitBlockArray);
  
 diff --git a/src/kernel/kernel_bridge.c b/src/kernel/kernel_bridge.c
-index 10d00f4..e636ff6 100644
+index 10d00f4..a914646 100644
 --- a/src/kernel/kernel_bridge.c
 +++ b/src/kernel/kernel_bridge.c
 @@ -1,3 +1,4 @@
@@ -643,7 +607,7 @@ index 10d00f4..e636ff6 100644
  /**
   * kernel_bridge.c - Bridge between translated game code and kernel functions
   *
-@@ -25,6 +26,7 @@
+@@ -25,12 +26,14 @@
   *   different parameter layouts (pointer vs value), so each needs its own bridge.
   */
  
@@ -651,7 +615,14 @@ index 10d00f4..e636ff6 100644
  #include "kernel.h"
  #include "guest_vmem.h"
  #include "kernel_missing.h"
-@@ -70,6 +72,12 @@ recomp_func_t recomp_lookup_manual(uint32_t xbox_va);
+ #include "xbox_memory_layout.h"
+ #include "platform/host_time.h"
+ #include "recomp_icall_feedback.h"
++#include "usb/ohci.h"
+ #include <stdio.h>
+ /* stdlib.h is load-bearing, not tidiness. Without it C89 implicit declaration
+  * makes malloc return `int`, so bridge_spawn_thread truncated its heap pointer
+@@ -70,6 +73,12 @@ recomp_func_t recomp_lookup_manual(uint32_t xbox_va);
  /* Translate Xbox VA to native pointer (NULL-safe: 0 → NULL) */
  #define XBOX_TO_NATIVE(va) ((va) ? (void*)((uintptr_t)(va) + g_xbox_mem_offset) : NULL)
  
@@ -664,7 +635,7 @@ index 10d00f4..e636ff6 100644
  /* ── Guest buffers the host is about to touch ───────────
   *
   * A bridge turns a guest VA into a host pointer by adding an offset, so a VA
-@@ -1984,6 +1992,82 @@ static HANDLE ke_shadow_lookup(uint32_t guest_va);
+@@ -1984,6 +1993,82 @@ static HANDLE ke_shadow_lookup(uint32_t guest_va);
  static void ke_shadow_insert(uint32_t guest_va, HANDLE host);
  static HANDLE bridge_resolve_handle(uint32_t token);
  static HANDLE ke_guest_event(uint32_t guest_va, int *type);
@@ -747,7 +718,7 @@ index 10d00f4..e636ff6 100644
  
  /* Bring a header-owned host event in line with guest SignalState before a
   * wait. Explicitly initialized shadows keep their existing host-state policy. */
-@@ -2023,20 +2107,63 @@ static void bridge_KeSetEvent(void)
+@@ -2023,20 +2108,63 @@ static void bridge_KeSetEvent(void)
              return;
          }
      }
@@ -819,7 +790,7 @@ index 10d00f4..e636ff6 100644
      uint32_t object = STACK_ARG(0);
      uint32_t wait_reason = STACK_ARG(1);
      uint32_t wait_mode = STACK_ARG(2);
-@@ -2051,23 +2178,27 @@ static void bridge_KeWaitForSingleObject(void)
+@@ -2051,23 +2179,27 @@ static void bridge_KeWaitForSingleObject(void)
          HANDLE ge = ke_guest_event_prepare(object, &type);
          if (ge) {
              g_eax = (uint32_t)xbox_KeWaitForSingleObject(
@@ -856,7 +827,7 @@ index 10d00f4..e636ff6 100644
  }
  
  /* ── NtWaitForSingleObject (ordinal 233) ─────────────────── */
-@@ -2079,6 +2210,7 @@ static void bridge_KeWaitForSingleObject(void)
+@@ -2079,6 +2211,7 @@ static void bridge_KeWaitForSingleObject(void)
   */
  static void bridge_NtWaitForSingleObject(void)
  {
@@ -864,7 +835,7 @@ index 10d00f4..e636ff6 100644
      HANDLE   handle      = bridge_resolve_handle(STACK_ARG(0));
      uint32_t alertable   = STACK_ARG(1);
      uint32_t timeout_ptr = STACK_ARG(2);
-@@ -2086,7 +2218,8 @@ static void bridge_NtWaitForSingleObject(void)
+@@ -2086,7 +2219,8 @@ static void bridge_NtWaitForSingleObject(void)
      if (bridge_run_io_apcs(alertable, 1))
          return;
      g_eax = (uint32_t)xbox_NtWaitForSingleObject(
@@ -874,7 +845,7 @@ index 10d00f4..e636ff6 100644
  }
  
  /* ── NtClearEvent (ordinal 186) ──────────────────────────── */
-@@ -3995,10 +4128,8 @@ static void bridge_write_iostatus(uint32_t ios_va, NTSTATUS status, uint32_t inf
+@@ -3995,10 +4129,8 @@ static void bridge_write_iostatus(uint32_t ios_va, NTSTATUS status, uint32_t inf
   * Xbox memory. Tokens carry a tag in the high byte so they never collide
   * with the synthetic handles (0xDEAD0001 / 0xBEEF0010) used elsewhere.
   */
@@ -887,7 +858,7 @@ index 10d00f4..e636ff6 100644
  typedef char thobj_tag_matches[(BRIDGE_HANDLE_TAG == 0x48000000u &&
                                  BRIDGE_HANDLE_MAX == 16384) ? 1 : -1];
  static HANDLE s_handle_table[BRIDGE_HANDLE_MAX];
-@@ -4709,13 +4840,15 @@ static int bridge_handle_is_async(uint32_t token)
+@@ -4709,13 +4841,15 @@ static int bridge_handle_is_async(uint32_t token)
      return 0;
  }
  
@@ -906,7 +877,7 @@ index 10d00f4..e636ff6 100644
      return on;
  }
  
-@@ -5141,6 +5274,57 @@ static void bridge_NtDeviceIoControlFile(void)
+@@ -5141,6 +5275,57 @@ static void bridge_NtDeviceIoControlFile(void)
           *   6 CdbLength  7 SenseInfoLength  8 DataIn
           *   12 DataTransferLength  16 TimeOutValue  20 DataBuffer
           *   24 SenseInfoOffset  28 Cdb[16] */
@@ -964,7 +935,7 @@ index 10d00f4..e636ff6 100644
          if (in_va && in_len >= 44 && BRIDGE_MEM8(in_va + 28) == 0x5A) {
              uint32_t data_va  = BRIDGE_MEM32(in_va + 20);
              uint32_t data_len = BRIDGE_MEM32(in_va + 12);
-@@ -7628,15 +7812,10 @@ static void ke_shadow_remove(uint32_t guest_va)
+@@ -7628,15 +7813,10 @@ static void ke_shadow_remove(uint32_t guest_va)
   * hang. Turn it on for a title that waits on events it built itself. */
  static HANDLE ke_guest_event(uint32_t guest_va, int *type)
  {
@@ -981,7 +952,7 @@ index 10d00f4..e636ff6 100644
          return NULL;
      if (guest_va < 0x10000u || (guest_va & 3u))
          return NULL;
-@@ -7672,7 +7851,7 @@ static HANDLE ke_guest_event(uint32_t guest_va, int *type)
+@@ -7672,7 +7852,7 @@ static HANDLE ke_guest_event(uint32_t guest_va, int *type)
          static int shown;
          if (shown++ < 16)
              fprintf(stderr, "  [KERNEL] event 0x%08X built by the title: host event created "
@@ -990,7 +961,7 @@ index 10d00f4..e636ff6 100644
      }
      return h;
  }
-@@ -8445,11 +8624,13 @@ static void bridge_KePulseEvent(void)
+@@ -8445,11 +8625,13 @@ static void bridge_KePulseEvent(void)
              return;
          }
      }
@@ -1009,7 +980,7 @@ index 10d00f4..e636ff6 100644
  
      g_eax = 0; /* previous state unknown */
  }
-@@ -8467,10 +8648,10 @@ static void bridge_KeReleaseMutant(void)
+@@ -8467,10 +8649,10 @@ static void bridge_KeReleaseMutant(void)
      (void)wait;
      (void)abandoned;
  
@@ -1023,7 +994,7 @@ index 10d00f4..e636ff6 100644
          ReleaseMutex(h);
  
      g_eax = 0;
-@@ -8488,10 +8669,10 @@ static void bridge_KeReleaseSemaphore(void)
+@@ -8488,10 +8670,10 @@ static void bridge_KeReleaseSemaphore(void)
      (void)increment;
      (void)wait;
  
@@ -1037,7 +1008,7 @@ index 10d00f4..e636ff6 100644
          ReleaseSemaphore(h, (LONG)adjustment, NULL);
  
      g_eax = 0;
-@@ -8513,10 +8694,10 @@ static void bridge_KeResetEvent(void)
+@@ -8513,10 +8695,10 @@ static void bridge_KeResetEvent(void)
              return;
          }
      }
@@ -1051,7 +1022,7 @@ index 10d00f4..e636ff6 100644
          ResetEvent(h);
  
      g_eax = 0;
-@@ -10823,6 +11004,27 @@ static void kernel_thunk_dispatch_body(void)
+@@ -10823,6 +11005,27 @@ static void kernel_thunk_dispatch_body(void)
      ordinal = g_slot_ordinals[slot];
      bridge = g_slot_bridges[slot];
  
@@ -1079,6 +1050,17 @@ index 10d00f4..e636ff6 100644
      g_kernel_call_count++;
      if (ordinal < XBOX_KERNEL_THUNK_TABLE_SIZE)
          g_ordinal_calls[ordinal]++;
+@@ -11193,4 +11396,10 @@ void xbox_kernel_bridge_init(void)
+     fprintf(stderr, "  Synthetic VA range: 0x%08X-0x%08X\n",
+             KERNEL_VA_BASE, KERNEL_VA_BASE + (resolved - 1) * 4);
+ 
++    /* USB OHCI. The trap model is opt-in (RECOMP_USB) because a controller
++     * that can be found but not enumerated changes what a title does. It has
++     * to be installed here, after the guest memory is mapped, or the title
++     * reads plain zeroed RAM and concludes there is no controller at all. */
++    xbox_OhciInit();
++
+ }
 diff --git a/src/kernel/kernel_file.c b/src/kernel/kernel_file.c
 index eb33a61..4490343 100644
 --- a/src/kernel/kernel_file.c
@@ -2438,6 +2420,3 @@ index efa5046..6444710 100644
          fflush(stderr);
      }
      return ok;
--- 
-2.53.0
-
