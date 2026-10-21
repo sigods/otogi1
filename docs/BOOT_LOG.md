@@ -118,6 +118,19 @@ Template:
   control setups, 39 control completions). The title does not yet poll the pad
   — its state block stays `0xFFFFFFFF` — so controls are still not usable in
   v0.1, but the device path is now live instead of absent.
+
+- Input, remaining gate (same day, timeboxed): with the USB model live the
+  device enumerates and reports are served, but the title still never reads
+  the pad. The gate is its own controller object pointer at `0x1120EDC`: the
+  menu input code at `recomp_0014.c` does `if (MEM8(0x1120ED8) & 0x10) ... else
+  if (MEM32(0x1120EDC) != 0) call sub_000301A0` (the pad-state reader), and at
+  runtime both `0x1120ED8 = 0x0000` and `0x1120EDC = 0x00000000`, so the read
+  is skipped every frame. The state block `0x1120F6C..0x1120F94` is cleared to
+  `0xFFFFFFFF` by `sub_0002FB90` (1520 calls in 15 s) and never filled. No
+  generated code assigns `0x1120EDC` directly, so the object is registered by
+  the title's XAPI when it opens the device — and that open is not completing
+  even though the USB stack has enumerated the pad. That is the next thread to
+  pull; it is not a one-line fix.
 - Packaging: the runtime changes are committed on the toolkit branch
   `otogi1-linux-v0.1` and shipped as `xboxrecomp-linux.patch` (applies cleanly
   to upstream `v0.15.0`). `CMakeLists.txt` and `.gitignore` are now tracked;
