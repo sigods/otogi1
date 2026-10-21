@@ -1,0 +1,37 @@
+# Game data — never commit
+/game/
+*.iso
+*.xbe
+
+# Generated C — regenerated, never edited
+src/game/recomp/gen/
+
+# Build output
+build*/
+bin/
+saves/
+setup.log
+stderr.txt
+
+# Local run artifacts — logs, captures, debugger and profiler dumps
+*.log
+*.wav
+*.bmp
+*.ppm
+*.png
+*.data
+*.pid
+pid
+*.gdb
+SS.bin
+.opencode/
+perf*.data
+cpu.txt
+f58f7.txt
+gdb*.txt
+missing.txt
+offs.txt
+pcs*.txt
+st2.txt
+time.txt
+pid*.txt

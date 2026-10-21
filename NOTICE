@@ -1,0 +1,33 @@
+Otogi: Myth of Demons — technical preview v0.1
+==============================================
+
+This repository contains a static recompilation of the original Xbox release of
+*Otogi: Myth of Demons*. It ships no game data.
+
+Game content
+------------
+*Otogi: Myth of Demons* and all of its assets, code, names, and marks are
+copyright FromSoftware, Inc. and Sega Corporation. No game data, disc image,
+XBE, extracted asset, or generated recompiled source is distributed here. You
+must supply your own legally obtained copy of the game; `game/` and
+`src/game/recomp/gen/` are gitignored for that reason.
+
+Runtime toolkit
+---------------
+The executable is built against the `xboxrecomp` toolkit
+(https://github.com/sp00nznet/xboxrecomp), which is MIT-licensed. This project
+carries the toolkit changes it needs as `xboxrecomp-linux.patch`, which applies
+to upstream tag `v0.15.0`. The toolkit's own `LICENSE` and `NOTICE` govern that
+code.
+
+Third-party libraries
+---------------------
+- SDL2 — zlib license
+- libepoxy — MIT license
+- CMake, Ninja, and the C toolchain are build-time dependencies and are not
+  distributed here.
+
+No warranty
+-----------
+This is an unfinished technical preview provided as-is, without warranty of any
+kind. It does not render a picture and does not accept controller input.

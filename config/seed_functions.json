@@ -1,11 +1,18 @@
-{
-  "_comment": "Title-specific function seeds and overrides for Otogi 1. Generated C is never edited; corrections live here. Schema to be confirmed against sp00nznet/burnout3 config/seed_functions.json before first use.",
-  "title_id": "0x46530002",
-  "title_name": "Otogi: Myth of Demons",
-  "seed_functions": [],
-  "manual_overrides": [],
-  "notes": [
-    "Populate after Step 3/4.5 once function classification is known.",
-    "Entry point and kernel imports recorded from Step 2."
-  ]
-}
+[
+  {
+    "start": "0x00125AD4",
+    "note": "DSOUND continuation reached by the je at 0x125ABC inside sub_00125AAD; it falls through to the shared `ret 8` at 0x125B16. Without this seed the translator ended sub_00125AAD at 0x125AD4 and stubbed 0x125AD4 with a 4-byte pop (not detected), so every successful call returned with the guest esp 8 bytes low. That leaked 16 bytes through sub_00075AE0 and made the 0x40E50 destructor see a stack-shifted map (root 0x100), overflowing the host stack in sub_0007A2A0. Seeded and regenerated after runtime ABI/ICALLSP tracing, 2026-10-19."
+  },
+  {
+    "start": "0x00125B40",
+    "note": "DSOUND continuation reached by the je at 0x125B28 inside sub_00125B19; it falls through to the shared `ret 8` at 0x125B63. Same stub/leak as 0x125AD4: the auto stub popped only 4 bytes and skipped the real body."
+  },
+  {
+    "start": "0x000F6A4C",
+    "note": "D3D continuation reached by the jne at 0x0F6A3E inside sub_000F69E0. The auto disassembly ended sub_000F69E0 at the first `ret 0x10` (0x0F6A49), so the fall-through target was stubbed with a 4-byte pop even though the real body runs to 0x0F6B1B and ends with `ret 0x10` (bytes C2 10 00), not `ret 0xC`. Seeded 2026-10-19 from raw-XBE capstone ground truth; ends at 0x0F6B1E."
+  },
+  {
+    "start": "0x0016D778",
+    "note": "XPP function reached by the tail jmp at 0x0016E444. The auto stub popped only 4 bytes because the stub walk hit a call before the final `ret 8`; the real body runs 0x0016D778-0x0016D7ED and ends with `ret 8` (bytes C2 08 00) at 0x0016D7EE. Every call therefore returned with the guest esp 4 bytes low. Seeded 2026-10-19 from raw-XBE capstone ground truth; ends at 0x0016D7F1."
+  }
+]

@@ -1,37 +1,100 @@
-# Otogi: Myth of Demons — static recompilation
+# Otogi: Myth of Demons — technical preview v0.1
 
-A static recompilation of the original Xbox version of *Otogi: Myth of Demons*
-(FromSoftware / Sega, 2002) into a native Windows x86-64 executable, using the
+This is a static recompilation of the original Xbox release of *Otogi: Myth of
+Demons* (FromSoftware / Sega, 2002) into a native executable built with the
 [xboxrecomp](https://github.com/sp00nznet/xboxrecomp) toolkit. The game's own
-x86 code is lifted to C and compiled natively — no emulation, no interpreter,
-no hand-written game logic.
+x86 code is translated to C and compiled natively — there is no emulator and no
+interpreter, and no hand-written game logic is substituted for the title's own.
+This v0.1 preview boots the retail XBE on Linux, creates the title's D3D device
+and frame-completion event, loads assets through the recompiled kernel and file
+I/O paths, streams the menu BGM, and runs the title's own main loop headless. It
+does not yet produce a picture: the software push-buffer executor decodes the
+guest's command stream behind `RECOMP_PB_EXEC`, but the title's vertex program
+writes `w = inf`, so every triangle is rejected before rasterisation.
 
-**Generated source and game data are not distributed.** You supply your own
-disc image; the recompiler runs on your machine and writes the C into a
-gitignored folder.
+## Status
 
-## Quick start
+| Component | State | Notes |
+|---|---|---|
+| Boot | Works | Loads the XBE, reaches `[AV] SetDisplayMode`, and runs the title's main loop headless. A 25 s run exits on the test timeout without crashing. |
+| Kernel | Works | Kernel, thread, and synchronization paths are recompiled/native. Title-built KEVENTs and the NV2A fence-completion event are handled. Asynchronous `NtReadFile` completes with `STATUS_PENDING` (default; `RECOMP_SYNC_IO=1` restores inline completion). |
+| File I/O | Works | Loads all 12 XBE sections and reads title assets from the `game/` directory, including the title's packed `.dev`/`.000` archives. |
+| Input | Experimental | USB OHCI and emulated pads are behind `RECOMP_USB`; the guest never reaches the pad path (no OHCI access, no call into the host pad bridge), so the pad cache stays `0xFFFFFFFF`. No usable controls are confirmed. |
+| Audio | Experimental | `RECOMP_AC97_READY=1` brings up the MCPX APU and SDL2 output. Streamed menu BGM now produces measured non-zero PCM (peak ≈ 32000, RMS ≈ 4900 over 13 s, captured with `RECOMP_AUDIO_WAV`); the DSP is a passthrough stub, so effects and menu flow are not verified. |
+| Rendering | Not implemented | The software push-buffer executor exists behind `RECOMP_PB_EXEC` and decodes clears and draws, but produces a black frame: the title's vertex program outputs `w = inf` and every triangle is rejected. The NV2A register aperture has no register semantics. |
+
+Current behavior, including the exact boot log lines, is recorded in
+[`docs/BOOT_LOG.md`](docs/BOOT_LOG.md).
+
+## Building on Linux
+
+Requirements:
+
+- Linux x86-64, CMake 3.20+, and a C11 compiler (the existing `build-linux`
+  directory was configured with Ninja).
+- The `xboxrecomp` toolkit checked out alongside this project at
+  `../xboxrecomp` (or pass `-DXBOXRECOMP_DIR=/path/to/xboxrecomp`).
+- Generated recompiled sources in `src/game/recomp/gen/`, produced by
+  `regen.sh` after you supply game data (see below). They are not tracked.
+
+From the project root:
 
 ```
-# 1. Unpack your own disc image into game/
-py -3 -m tools.xiso unpack "Otogi - Myth of Demons.iso" -o game/
-
-# 2. Regenerate the C (Git Bash)
-./regen.sh
-
-# 3. Build
-cmake -S . -B build-xr -G "Visual Studio 17 2022" -A x64
-cmake --build build-xr --config Release --parallel 2
-
-# 4. Run
-bin\otogi1.exe 2>stderr.txt
+cmake -S . -B build-linux
+cmake --build build-linux -j8
 ```
 
-It will crash on first run. That is expected — start at `AGENTS.md` §6.
+The executable is written to `build-linux/bin/otogi1`.
 
-## Layout
+Run it from the project root:
 
-- `AGENTS.md` — operating manual for coding agents (read first).
-- `docs/` — title facts, pipeline, architecture, boot log.
-- `config/` — title-specific seeds and overrides.
-- `src/game/` — boot constants and manual overrides (generated C is gitignored).
+```
+./build-linux/bin/otogi1
+```
+
+The working directory matters. `src/game/main.c` opens `game/default.xbe`
+relative to the current directory, not relative to the executable. Running the
+binary from anywhere else fails with:
+
+```
+Cannot open XBE: game/default.xbe
+```
+
+## You must provide the game data
+
+This repository ships no game data and no generated recompiled code.
+`.gitignore` excludes `game/`, `*.xbe`, `*.iso`, and
+`src/game/recomp/gen/`, so none of those files are part of the tracked tree.
+
+You must supply your own legally obtained copy of the game (XBE or disc image),
+unpack it into `game/` so that `game/default.xbe` exists, and run `regen.sh` to
+generate the recompiled C before building. The repository does not include the
+recompiler or the disc; both come from the `xboxrecomp` toolkit and your own
+disc. Do not use this project with data you are not entitled to use.
+
+## Known limitations
+
+- No rendering: the GPU command stream is not decoded and the screen stays
+  blank. This is the main blocker for a visual build.
+- The intro movie / XMV path is incomplete. The demux expects asynchronous read
+  completion, and the current run reaches `SetDisplayMode` and then stalls in
+  that path. The headless main loop has been observed with the movie skipped.
+- Input is not usable for play; pad support is experimental and has only been
+  exercised during boot.
+- Audio is experimental and unverified.
+- Only the Linux build is documented here. A Windows host path exists in
+  `src/game/main.c`, but it is not verified in this checkout.
+- This is a single-title research preview, not a general Xbox runtime. No
+  performance, compatibility, or completeness claims are made.
+
+## Licensing
+
+This repository does not currently carry its own top-level `LICENSE` or
+`NOTICE` file. The runtime it builds against, `xboxrecomp` (default checkout
+`../xboxrecomp`), is MIT-licensed; its `LICENSE` is at
+`../xboxrecomp/LICENSE`. Third-party attribution, including the xemu-derived
+MCPX APU and NV2A sources, is in `../xboxrecomp/NOTICE`, and the applicable
+LGPL-2.1 text is `../xboxrecomp/LICENSES/LGPL-2.1.txt`. Consult those files for
+the actual terms. The xemu-derived components remain under their upstream
+licences and are not relicensed by this project. A source release that includes
+the runtime must include those licensing files with it.

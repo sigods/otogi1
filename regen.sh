@@ -17,18 +17,21 @@ fi
 cd "$TOOLKIT"
 
 echo "==> xbe_parser"
-py -3 -m tools.xbe_parser "$XBE" --json "$ANALYSIS"
+python3 -m tools.xbe_parser "$XBE" --json "$ANALYSIS"
 
 echo "==> disasm"
-py -3 -m tools.disasm "$XBE" --text-only -v
+python3 -m tools.disasm "$XBE" --text-only -v \
+  --seed-functions "$ROOT/config/seed_functions.json" \
+  --extra-sections D3D,D3DX,DSOUND,XGRPH,XMV,XPP
 
 echo "==> func_id"
-py -3 -m tools.func_id "$XBE" -v
+python3 -m tools.func_id "$XBE" -v
 
 echo "==> abi_analysis  (never skip: silent wrong signatures otherwise)"
-py -3 -m tools.abi_analysis "$XBE" -v
+python3 -m tools.abi_analysis "$XBE" -v
 
 echo "==> recomp  (--split 250: prevents OOM)"
-py -3 -m tools.recomp "$XBE" --all --split 250 --gen-dir "$GEN_DIR"
+python3 -m tools.recomp "$XBE" --all --split 250 --gen-dir "$GEN_DIR" \
+  --exclude-manual "$ROOT/src/game/recomp_manual.c"
 
 echo "==> done. Now: cmake --build build-xr --config Release"
