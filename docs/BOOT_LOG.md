@@ -136,3 +136,20 @@ Template:
   to upstream `v0.15.0`). `CMakeLists.txt` and `.gitignore` are now tracked;
   run artifacts (`*.log`, `*.wav`, captures, debugger dumps) are ignored.
 
+
+## 2026-10-21 — Win32 cross-build
+
+- The mingw-w64 cross-build now compiles and links:
+  `cmake -B build-win -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc
+  -DXBOXRECOMP_DIR=../xboxrecomp` → `build-win/bin/otogi1.exe`, 18,479,962 bytes.
+- Two portability gaps were in the way. `mmio_decode_x86_64.h` only knew the
+  POSIX `ucontext_t`; it now takes a Win32 `CONTEXT` as well (same register
+  indices, `Rip`/`Rsp`/`Rax..R15` via the CONTEXT fields), and the OHCI and APU
+  VEH call sites use that decoder instead of the older `mmio_emulate` copy.
+  `dlfcn`/`dladdr` in `kernel_bridge.c` and the read(2) silent-failure dump in
+  `xbox_memory_layout.c` are now behind `#ifndef _WIN32`.
+- Under wine the exe reaches the same milestone as Linux: XBE loads, memory
+  layout maps, fence mirror registers, `[AV] SetDisplayMode` appears, kernel
+  ordinals resolve, no crash (stopped by the timeout).
+- This is not part of the v0.1 Linux release; it just means the tree no longer
+  fails to build when `WIN32` is defined.

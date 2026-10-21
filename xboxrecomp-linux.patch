@@ -1,8 +1,25 @@
 diff --git a/src/apu/apu_mmio_hook.c b/src/apu/apu_mmio_hook.c
-index 235140f..79841fb 100644
+index 235140f..a487097 100644
 --- a/src/apu/apu_mmio_hook.c
 +++ b/src/apu/apu_mmio_hook.c
-@@ -120,12 +120,18 @@ bool apu_hook_handle_mmio(PCONTEXT ctx, uintptr_t fault_addr,
+@@ -23,6 +23,7 @@ MCPXAPUState *g_apu_state = NULL;
+ #if defined(_WIN32)
+ #include <windows.h>
+ #include "../platform/mmio_decode.h"
++#include "../platform/mmio_decode_x86_64.h"
+ 
+ /* APU MMIO base in Xbox VA space */
+ #define APU_MMIO_BASE  0xFE800000u
+@@ -75,7 +76,7 @@ static bool apu_decode_and_handle(PCONTEXT ctx, uint32_t mmio_offset, int is_wri
+ 
+     (void)is_write;
+     if (!g_apu_state) return false;
+-    if (mmio_emulate(ctx, mmio_offset, g_apu_state, apu_mmio_rd, apu_mmio_wr))
++    if (mmio_emulate_x86_64(ctx, mmio_offset, g_apu_state, apu_mmio_rd, apu_mmio_wr))
+         return true;
+ 
+     /* Unrecognized */
+@@ -120,12 +121,18 @@ bool apu_hook_handle_mmio(PCONTEXT ctx, uintptr_t fault_addr,
  
  #endif /* _WIN32 */
  
@@ -25,7 +42,7 @@ index 235140f..79841fb 100644
  
  #define APU_MMIO_BASE  0xFE800000u
  #define APU_MMIO_SIZE  0x00080000u
-@@ -167,7 +173,11 @@ bool apu_hook_handle_mmio_posix(void *ucv, uintptr_t fault_addr,
+@@ -167,7 +174,11 @@ bool apu_hook_handle_mmio_posix(void *ucv, uintptr_t fault_addr,
      (void)fault_addr; (void)is_write;
      if (!g_apu_state || off >= APU_MMIO_SIZE)
          return false;
@@ -37,7 +54,7 @@ index 235140f..79841fb 100644
          return true;
      g_apu_mmio_decode_fail++;
      /* stdio in a signal handler is not async-signal-safe. The process is
-@@ -175,8 +185,8 @@ bool apu_hook_handle_mmio_posix(void *ucv, uintptr_t fault_addr,
+@@ -175,8 +186,8 @@ bool apu_hook_handle_mmio_posix(void *ucv, uintptr_t fault_addr,
       * capped at 20, as on Windows. */
      if (g_apu_mmio_decode_fail <= 20)
          fprintf(stderr, "[APU] MMIO decode fail at PC=%p insn=%08X offset=0x%X\n",
@@ -599,7 +616,7 @@ index 4a6389d..ae760b8 100644
  NTSTATUS __stdcall xbox_KeWaitForMultipleObjects(ULONG Count, PVOID Objects[], ULONG WaitType, ULONG WaitReason, KPROCESSOR_MODE WaitMode, BOOLEAN Alertable, PLARGE_INTEGER Timeout, PVOID WaitBlockArray);
  
 diff --git a/src/kernel/kernel_bridge.c b/src/kernel/kernel_bridge.c
-index 10d00f4..a914646 100644
+index 10d00f4..3620901 100644
 --- a/src/kernel/kernel_bridge.c
 +++ b/src/kernel/kernel_bridge.c
 @@ -1,3 +1,4 @@
@@ -607,11 +624,13 @@ index 10d00f4..a914646 100644
  /**
   * kernel_bridge.c - Bridge between translated game code and kernel functions
   *
-@@ -25,12 +26,14 @@
+@@ -25,12 +26,16 @@
   *   different parameter layouts (pointer vs value), so each needs its own bridge.
   */
  
++#ifndef _WIN32
 +#include <dlfcn.h>
++#endif
  #include "kernel.h"
  #include "guest_vmem.h"
  #include "kernel_missing.h"
@@ -622,7 +641,7 @@ index 10d00f4..a914646 100644
  #include <stdio.h>
  /* stdlib.h is load-bearing, not tidiness. Without it C89 implicit declaration
   * makes malloc return `int`, so bridge_spawn_thread truncated its heap pointer
-@@ -70,6 +73,12 @@ recomp_func_t recomp_lookup_manual(uint32_t xbox_va);
+@@ -70,6 +75,12 @@ recomp_func_t recomp_lookup_manual(uint32_t xbox_va);
  /* Translate Xbox VA to native pointer (NULL-safe: 0 → NULL) */
  #define XBOX_TO_NATIVE(va) ((va) ? (void*)((uintptr_t)(va) + g_xbox_mem_offset) : NULL)
  
@@ -635,7 +654,7 @@ index 10d00f4..a914646 100644
  /* ── Guest buffers the host is about to touch ───────────
   *
   * A bridge turns a guest VA into a host pointer by adding an offset, so a VA
-@@ -1984,6 +1993,82 @@ static HANDLE ke_shadow_lookup(uint32_t guest_va);
+@@ -1984,6 +1995,82 @@ static HANDLE ke_shadow_lookup(uint32_t guest_va);
  static void ke_shadow_insert(uint32_t guest_va, HANDLE host);
  static HANDLE bridge_resolve_handle(uint32_t token);
  static HANDLE ke_guest_event(uint32_t guest_va, int *type);
@@ -718,7 +737,7 @@ index 10d00f4..a914646 100644
  
  /* Bring a header-owned host event in line with guest SignalState before a
   * wait. Explicitly initialized shadows keep their existing host-state policy. */
-@@ -2023,20 +2108,63 @@ static void bridge_KeSetEvent(void)
+@@ -2023,20 +2110,63 @@ static void bridge_KeSetEvent(void)
              return;
          }
      }
@@ -790,7 +809,7 @@ index 10d00f4..a914646 100644
      uint32_t object = STACK_ARG(0);
      uint32_t wait_reason = STACK_ARG(1);
      uint32_t wait_mode = STACK_ARG(2);
-@@ -2051,23 +2179,27 @@ static void bridge_KeWaitForSingleObject(void)
+@@ -2051,23 +2181,27 @@ static void bridge_KeWaitForSingleObject(void)
          HANDLE ge = ke_guest_event_prepare(object, &type);
          if (ge) {
              g_eax = (uint32_t)xbox_KeWaitForSingleObject(
@@ -827,7 +846,7 @@ index 10d00f4..a914646 100644
  }
  
  /* ── NtWaitForSingleObject (ordinal 233) ─────────────────── */
-@@ -2079,6 +2211,7 @@ static void bridge_KeWaitForSingleObject(void)
+@@ -2079,6 +2213,7 @@ static void bridge_KeWaitForSingleObject(void)
   */
  static void bridge_NtWaitForSingleObject(void)
  {
@@ -835,7 +854,7 @@ index 10d00f4..a914646 100644
      HANDLE   handle      = bridge_resolve_handle(STACK_ARG(0));
      uint32_t alertable   = STACK_ARG(1);
      uint32_t timeout_ptr = STACK_ARG(2);
-@@ -2086,7 +2219,8 @@ static void bridge_NtWaitForSingleObject(void)
+@@ -2086,7 +2221,8 @@ static void bridge_NtWaitForSingleObject(void)
      if (bridge_run_io_apcs(alertable, 1))
          return;
      g_eax = (uint32_t)xbox_NtWaitForSingleObject(
@@ -845,7 +864,7 @@ index 10d00f4..a914646 100644
  }
  
  /* ── NtClearEvent (ordinal 186) ──────────────────────────── */
-@@ -3995,10 +4129,8 @@ static void bridge_write_iostatus(uint32_t ios_va, NTSTATUS status, uint32_t inf
+@@ -3995,10 +4131,8 @@ static void bridge_write_iostatus(uint32_t ios_va, NTSTATUS status, uint32_t inf
   * Xbox memory. Tokens carry a tag in the high byte so they never collide
   * with the synthetic handles (0xDEAD0001 / 0xBEEF0010) used elsewhere.
   */
@@ -858,7 +877,7 @@ index 10d00f4..a914646 100644
  typedef char thobj_tag_matches[(BRIDGE_HANDLE_TAG == 0x48000000u &&
                                  BRIDGE_HANDLE_MAX == 16384) ? 1 : -1];
  static HANDLE s_handle_table[BRIDGE_HANDLE_MAX];
-@@ -4709,13 +4841,15 @@ static int bridge_handle_is_async(uint32_t token)
+@@ -4709,13 +4843,15 @@ static int bridge_handle_is_async(uint32_t token)
      return 0;
  }
  
@@ -877,7 +896,7 @@ index 10d00f4..a914646 100644
      return on;
  }
  
-@@ -5141,6 +5275,57 @@ static void bridge_NtDeviceIoControlFile(void)
+@@ -5141,6 +5277,57 @@ static void bridge_NtDeviceIoControlFile(void)
           *   6 CdbLength  7 SenseInfoLength  8 DataIn
           *   12 DataTransferLength  16 TimeOutValue  20 DataBuffer
           *   24 SenseInfoOffset  28 Cdb[16] */
@@ -935,7 +954,7 @@ index 10d00f4..a914646 100644
          if (in_va && in_len >= 44 && BRIDGE_MEM8(in_va + 28) == 0x5A) {
              uint32_t data_va  = BRIDGE_MEM32(in_va + 20);
              uint32_t data_len = BRIDGE_MEM32(in_va + 12);
-@@ -7628,15 +7813,10 @@ static void ke_shadow_remove(uint32_t guest_va)
+@@ -7628,15 +7815,10 @@ static void ke_shadow_remove(uint32_t guest_va)
   * hang. Turn it on for a title that waits on events it built itself. */
  static HANDLE ke_guest_event(uint32_t guest_va, int *type)
  {
@@ -952,7 +971,7 @@ index 10d00f4..a914646 100644
          return NULL;
      if (guest_va < 0x10000u || (guest_va & 3u))
          return NULL;
-@@ -7672,7 +7852,7 @@ static HANDLE ke_guest_event(uint32_t guest_va, int *type)
+@@ -7672,7 +7854,7 @@ static HANDLE ke_guest_event(uint32_t guest_va, int *type)
          static int shown;
          if (shown++ < 16)
              fprintf(stderr, "  [KERNEL] event 0x%08X built by the title: host event created "
@@ -961,7 +980,7 @@ index 10d00f4..a914646 100644
      }
      return h;
  }
-@@ -8445,11 +8625,13 @@ static void bridge_KePulseEvent(void)
+@@ -8445,11 +8627,13 @@ static void bridge_KePulseEvent(void)
              return;
          }
      }
@@ -980,7 +999,7 @@ index 10d00f4..a914646 100644
  
      g_eax = 0; /* previous state unknown */
  }
-@@ -8467,10 +8649,10 @@ static void bridge_KeReleaseMutant(void)
+@@ -8467,10 +8651,10 @@ static void bridge_KeReleaseMutant(void)
      (void)wait;
      (void)abandoned;
  
@@ -994,7 +1013,7 @@ index 10d00f4..a914646 100644
          ReleaseMutex(h);
  
      g_eax = 0;
-@@ -8488,10 +8670,10 @@ static void bridge_KeReleaseSemaphore(void)
+@@ -8488,10 +8672,10 @@ static void bridge_KeReleaseSemaphore(void)
      (void)increment;
      (void)wait;
  
@@ -1008,7 +1027,7 @@ index 10d00f4..a914646 100644
          ReleaseSemaphore(h, (LONG)adjustment, NULL);
  
      g_eax = 0;
-@@ -8513,10 +8695,10 @@ static void bridge_KeResetEvent(void)
+@@ -8513,10 +8697,10 @@ static void bridge_KeResetEvent(void)
              return;
          }
      }
@@ -1022,7 +1041,7 @@ index 10d00f4..a914646 100644
          ResetEvent(h);
  
      g_eax = 0;
-@@ -10823,6 +11005,27 @@ static void kernel_thunk_dispatch_body(void)
+@@ -10823,6 +11007,35 @@ static void kernel_thunk_dispatch_body(void)
      ordinal = g_slot_ordinals[slot];
      bridge = g_slot_bridges[slot];
  
@@ -1035,8 +1054,15 @@ index 10d00f4..a914646 100644
 +            ord_log = (e && e[0] && e[0] != '0') ? 1 : 0;
 +        }
 +        if (ord_log && slot >= 0 && slot < 1024 && !ord_seen[slot]) {
++#ifndef _WIN32
 +            Dl_info di;
++#endif
 +            ord_seen[slot] = 1;
++#if defined(_WIN32)
++            /* No dladdr on Windows: report the bridge address as-is. */
++            fprintf(stderr, "  [ORD] slot %d ordinal %u -> %p\n",
++                    slot, ordinal, (void *)bridge);
++#else
 +            if (bridge && dladdr((void *)bridge, &di))
 +                fprintf(stderr, "  [ORD] slot %d ordinal %u -> off 0x%llx\n",
 +                        slot, ordinal,
@@ -1044,13 +1070,14 @@ index 10d00f4..a914646 100644
 +            else
 +                fprintf(stderr, "  [ORD] slot %d ordinal %u -> %p\n",
 +                        slot, ordinal, (void *)bridge);
++#endif
 +        }
 +    }
 +
      g_kernel_call_count++;
      if (ordinal < XBOX_KERNEL_THUNK_TABLE_SIZE)
          g_ordinal_calls[ordinal]++;
-@@ -11193,4 +11396,10 @@ void xbox_kernel_bridge_init(void)
+@@ -11193,4 +11406,10 @@ void xbox_kernel_bridge_init(void)
      fprintf(stderr, "  Synthetic VA range: 0x%08X-0x%08X\n",
              KERNEL_VA_BASE, KERNEL_VA_BASE + (resolved - 1) * 4);
  
@@ -1573,7 +1600,7 @@ index a513bc7..b6b674e 100644
              left--;
              fprintf(stderr, "[VTRACE] prim %u n %u idx %u %u %u\n", s_gpu.prim,
 diff --git a/src/kernel/xbox_memory_layout.c b/src/kernel/xbox_memory_layout.c
-index b723a92..ad75c8a 100644
+index b723a92..c859091 100644
 --- a/src/kernel/xbox_memory_layout.c
 +++ b/src/kernel/xbox_memory_layout.c
 @@ -656,8 +656,13 @@ static LONG CALLBACK ac97_write_veh(PEXCEPTION_POINTERS ep)
@@ -1799,22 +1826,25 @@ index b723a92..ad75c8a 100644
      /* The pushbuffer pointers, unconditionally.
       *
       * "Extend the table as more handshakes turn up -- run the title and the
-@@ -2450,6 +2560,14 @@ static DWORD WINAPI xbox_watchdog_thread(LPVOID unused)
+@@ -2450,6 +2560,17 @@ static DWORD WINAPI xbox_watchdog_thread(LPVOID unused)
                      (unsigned)hi, (unsigned)lo);
          fflush(stderr);
      }
 +    /* Reads that never reach read(2) are the one failure the missing-file
 +     * counter above cannot see: it only reports paths that failed to open.
-+     * Count them by cause so the spin names itself. */
++     * Count them by cause so the spin names itself. POSIX only: the Windows
++     * file bridge has no read(2) path to account for. */
++#ifndef _WIN32
 +    {
 +        extern void xbox_bridge_dump_silent(void);
 +        xbox_bridge_dump_silent();
 +        fflush(stderr);
 +    }
++#endif
      /* _exit skips atexit: finalise a RECOMP_AUDIO_WAV dump here, or up to
       * its last second is past the header. Bounded, in case the frame
       * thread is wedged inside a write. */
-@@ -2624,7 +2742,27 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
+@@ -2624,7 +2745,27 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
              g_span_size = (size_t)1 << 32;
              g_span_whole_window = 1;
          }
@@ -1843,7 +1873,7 @@ index b723a92..ad75c8a 100644
          if (g_span_base) {
              VirtualFree(g_span_base, g_memory_size, MEM_RELEASE);
              g_memory_base = MapViewOfFileEx(g_mapping_handle,
-@@ -3602,6 +3740,11 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
+@@ -3602,6 +3743,11 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
          win_settle_placeholders();
  #endif
      xbox_WatchInit();
@@ -1890,10 +1920,10 @@ index 3fdc824..20c7a53 100644
  
 diff --git a/src/platform/mmio_decode_x86_64.h b/src/platform/mmio_decode_x86_64.h
 new file mode 100644
-index 0000000..bd18f70
+index 0000000..bc1b9ab
 --- /dev/null
 +++ b/src/platform/mmio_decode_x86_64.h
-@@ -0,0 +1,450 @@
+@@ -0,0 +1,546 @@
 +/*
 + * mmio_decode_x86_64.h -- the x86-64 Linux twin of mmio_decode_a64.h, for
 + * trapped MMIO on a POSIX host.
@@ -1923,8 +1953,37 @@ index 0000000..bd18f70
 +#include <string.h>
 +#include <stdio.h>
 +
-+#if defined(__x86_64__) && defined(__linux__)
++#if defined(__x86_64__) && (defined(__linux__) || defined(_WIN32))
 +
++#if defined(_WIN32)
++/* A Win32 VEH hands over a CONTEXT. The REG_* indices below are the same ones
++ * the Linux gregset path uses, so the operand helpers stay shared; only the
++ * register file access differs. */
++#include <windows.h>
++
++#define REG_R8   0
++#define REG_R9   1
++#define REG_R10  2
++#define REG_R11  3
++#define REG_R12  4
++#define REG_R13  5
++#define REG_R14  6
++#define REG_R15  7
++#define REG_RDI  8
++#define REG_RSI  9
++#define REG_RBP  10
++#define REG_RBX  11
++#define REG_RDX  12
++#define REG_RAX  13
++#define REG_RCX  14
++#define REG_RSP  15
++#define REG_RIP  16
++
++typedef CONTEXT mmio_ctx_t;
++
++#define MMIO_CTX_PC(c)        ((uintptr_t)((c)->Rip))
++#define MMIO_CTX_SET_PC(c, v) ((c)->Rip = (uint64_t)(v))
++#else
 +/* REG_* in <sys/ucontext.h> is glibc's __USE_GNU set. Define it here as well
 + * so this header works whether or not the including TU asked for it first;
 + * the fallback numbers are the x86-64 Linux gregset ABI and are used when a
@@ -1955,8 +2014,11 @@ index 0000000..bd18f70
 +#define REG_EFL  17
 +#endif
 +
++typedef ucontext_t mmio_ctx_t;
++
 +#define MMIO_CTX_PC(uc)        ((uintptr_t)((uc)->uc_mcontext.gregs[REG_RIP]))
 +#define MMIO_CTX_SET_PC(uc, v) ((uc)->uc_mcontext.gregs[REG_RIP] = (greg_t)(v))
++#endif /* _WIN32 */
 +
 +typedef uint64_t (*mmio_x86_read_fn)(void *dev, uint32_t off, int size);
 +typedef void     (*mmio_x86_write_fn)(void *dev, uint32_t off, uint64_t val, int size);
@@ -1973,16 +2035,59 @@ index 0000000..bd18f70
 +    return map[r & 15];
 +}
 +
-+static inline uint64_t mmio_x86_get_reg(ucontext_t *uc, int reg)
++static inline uint64_t mmio_x86_get_reg(mmio_ctx_t *uc, int reg)
 +{
++#if defined(_WIN32)
++    switch (reg) {
++    case REG_RAX: return uc->Rax;
++    case REG_RCX: return uc->Rcx;
++    case REG_RDX: return uc->Rdx;
++    case REG_RBX: return uc->Rbx;
++    case REG_RSP: return uc->Rsp;
++    case REG_RBP: return uc->Rbp;
++    case REG_RSI: return uc->Rsi;
++    case REG_RDI: return uc->Rdi;
++    case REG_R8:  return uc->R8;
++    case REG_R9:  return uc->R9;
++    case REG_R10: return uc->R10;
++    case REG_R11: return uc->R11;
++    case REG_R12: return uc->R12;
++    case REG_R13: return uc->R13;
++    case REG_R14: return uc->R14;
++    case REG_R15: return uc->R15;
++    }
++    return 0;
++#else
 +    uint64_t v;
 +    memcpy(&v, &uc->uc_mcontext.gregs[mmio_x86_greg_index(reg)], sizeof v);
 +    return v;
++#endif
 +}
 +
-+static inline void mmio_x86_put_reg(ucontext_t *uc, int reg, uint64_t v)
++static inline void mmio_x86_put_reg(mmio_ctx_t *uc, int reg, uint64_t v)
 +{
++#if defined(_WIN32)
++    switch (reg) {
++    case REG_RAX: uc->Rax = v; break;
++    case REG_RCX: uc->Rcx = v; break;
++    case REG_RDX: uc->Rdx = v; break;
++    case REG_RBX: uc->Rbx = v; break;
++    case REG_RSP: uc->Rsp = v; break;
++    case REG_RBP: uc->Rbp = v; break;
++    case REG_RSI: uc->Rsi = v; break;
++    case REG_RDI: uc->Rdi = v; break;
++    case REG_R8:  uc->R8  = v; break;
++    case REG_R9:  uc->R9  = v; break;
++    case REG_R10: uc->R10 = v; break;
++    case REG_R11: uc->R11 = v; break;
++    case REG_R12: uc->R12 = v; break;
++    case REG_R13: uc->R13 = v; break;
++    case REG_R14: uc->R14 = v; break;
++    case REG_R15: uc->R15 = v; break;
++    }
++#else
 +    memcpy(&uc->uc_mcontext.gregs[mmio_x86_greg_index(reg)], &v, sizeof v);
++#endif
 +}
 +
 +static inline uint64_t mmio_x86_size_mask(int size)
@@ -1992,7 +2097,7 @@ index 0000000..bd18f70
 +
 +/* Read a general register at an operand width. Without a REX prefix, byte
 + * registers 4-7 are AH, CH, DH and BH -- bits 15:8 of registers 0-3. */
-+static inline uint64_t mmio_x86_read_operand_reg(ucontext_t *uc, int reg,
++static inline uint64_t mmio_x86_read_operand_reg(mmio_ctx_t *uc, int reg,
 +                                                 int size, int has_rex)
 +{
 +    if (size == 1 && !has_rex && reg >= 4 && reg < 8)
@@ -2002,7 +2107,7 @@ index 0000000..bd18f70
 +
 +/* Write with x86-64 width rules: a 32-bit write zeroes bits 63:32, an 8- or
 + * 16-bit write merges into what was there. */
-+static inline void mmio_x86_write_operand_reg(ucontext_t *uc, int reg,
++static inline void mmio_x86_write_operand_reg(mmio_ctx_t *uc, int reg,
 +                                              uint64_t v, int size,
 +                                              int has_rex)
 +{
@@ -2030,13 +2135,34 @@ index 0000000..bd18f70
 +
 +/* The XMM file lives in the FXSAVE area. The kernel points fpregs at it on
 + * signal delivery; __fpregs_mem is the in-ucontext copy for the case where it
-+ * does not. */
-+static inline uint8_t *mmio_x86_xmm(ucontext_t *uc, int reg)
++ * does not. On Windows the VEH's CONTEXT carries Xmm0..Xmm15 directly. */
++static inline uint8_t *mmio_x86_xmm(mmio_ctx_t *uc, int reg)
 +{
++#if defined(_WIN32)
++    switch (reg & 15) {
++    case 0:  return (uint8_t *)&uc->Xmm0;
++    case 1:  return (uint8_t *)&uc->Xmm1;
++    case 2:  return (uint8_t *)&uc->Xmm2;
++    case 3:  return (uint8_t *)&uc->Xmm3;
++    case 4:  return (uint8_t *)&uc->Xmm4;
++    case 5:  return (uint8_t *)&uc->Xmm5;
++    case 6:  return (uint8_t *)&uc->Xmm6;
++    case 7:  return (uint8_t *)&uc->Xmm7;
++    case 8:  return (uint8_t *)&uc->Xmm8;
++    case 9:  return (uint8_t *)&uc->Xmm9;
++    case 10: return (uint8_t *)&uc->Xmm10;
++    case 11: return (uint8_t *)&uc->Xmm11;
++    case 12: return (uint8_t *)&uc->Xmm12;
++    case 13: return (uint8_t *)&uc->Xmm13;
++    case 14: return (uint8_t *)&uc->Xmm14;
++    default: return (uint8_t *)&uc->Xmm15;
++    }
++#else
 +    struct _libc_fpstate *fp = uc->uc_mcontext.fpregs;
 +    if (!fp)
 +        fp = &uc->__fpregs_mem;
 +    return (uint8_t *)&fp->_xmm[reg & 15];
++#endif
 +}
 +
 +/* Decode one ModRM byte plus any SIB/displacement that follows it. Returns
@@ -2097,7 +2223,7 @@ index 0000000..bd18f70
 +/* One-shot diagnostic: one line per unique opcode prefix, not per fault. A
 + * title can take thousands of faults on a form that is not decoded, and a
 + * line per fault both floods the log and hides the other forms. */
-+static inline void mmio_x86_report_undecoded(ucontext_t *uc)
++static inline void mmio_x86_report_undecoded(mmio_ctx_t *uc)
 +{
 +    static uint32_t seen[64];
 +    static int nseen;
@@ -2129,7 +2255,7 @@ index 0000000..bd18f70
 +
 +/* 1 if the instruction at RIP was serviced against (rd, wr) and RIP advanced.
 + * off is the device offset of the faulting data address (from si_addr). */
-+static inline int mmio_emulate_x86_64(ucontext_t *uc, uint32_t off, void *dev,
++static inline int mmio_emulate_x86_64(mmio_ctx_t *uc, uint32_t off, void *dev,
 +                                      mmio_x86_read_fn rd,
 +                                      mmio_x86_write_fn wr)
 +{
@@ -2345,7 +2471,7 @@ index 0000000..bd18f70
 +#endif /* __x86_64__ && __linux__ */
 +#endif /* MMIO_DECODE_X86_64_H */
 diff --git a/src/usb/ohci.c b/src/usb/ohci.c
-index efa5046..6444710 100644
+index efa5046..6e9dde4 100644
 --- a/src/usb/ohci.c
 +++ b/src/usb/ohci.c
 @@ -9,6 +9,7 @@
@@ -2420,3 +2546,14 @@ index efa5046..6444710 100644
          fflush(stderr);
      }
      return ok;
+@@ -1479,8 +1486,8 @@ int xbox_OhciHandleMmio(void *ctx, uint32_t xbox_va)
+ 
+     if (!hc)
+         return 0;
+-    ok = mmio_emulate((PCONTEXT)ctx, xbox_va - hc->base, hc,
+-                      ohci_read_split, ohci_write_split);
++    ok = mmio_emulate_x86_64((mmio_ctx_t *)ctx, xbox_va - hc->base, hc,
++                             ohci_read_split, ohci_write_split);
+     if (!ok && hc->decode_fail++ < 20) {
+         const uint8_t *ip = (const uint8_t *)((PCONTEXT)ctx)->Rip;
+         fprintf(stderr, "  [OHCI%d] undecoded access at +0x%03X: "
