@@ -1,0 +1,60 @@
+name: repo hygiene
+
+# This repository cannot be built in CI: src/game/recomp/gen/ is generated from
+# the user's own disc and is deliberately not tracked. So these checks guard the
+# things that must never regress: no game data in the tree, and valid JSON in the
+# files the board and the recompiler read.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No game data tracked
+        run: |
+          set -euo pipefail
+          # The one .xbe allowed is the toolkit's own conformance fixture.
+          bad=$(git ls-files |
+            grep -Ei '^(game/|.*\.(iso|xmv|xps|xbe)$)' |
+            grep -vE '^third_party/xboxrecomp/tools/conformance/test\.xbe$' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::game data or an XBE is tracked in this repository"
+            echo "$bad"
+            exit 1
+          fi
+          echo "no game data tracked"
+
+      - name: JSON files parse
+        run: |
+          python3 - <<'PY'
+          import glob, json, sys
+          paths = ['.recomp.json'] + sorted(glob.glob('config/*.json'))
+          failed = False
+          for path in paths:
+              try:
+                  with open(path) as fh:
+                      json.load(fh)
+              except Exception as exc:
+                  failed = True
+                  print(f'::error file={path}::{exc}')
+              else:
+                  print(f'ok {path}')
+          sys.exit(1 if failed else 0)
+          PY
+
+      - name: Shellcheck tools
+        run: |
+          if command -v shellcheck >/dev/null 2>&1; then
+            shellcheck tools/*.sh
+          else
+            echo "shellcheck not installed, skipping"
+          fi
