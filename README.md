@@ -79,9 +79,10 @@ cmake --build build-win -j8
 
 That produces `build-win/bin/otogi1.exe`, which can be smoke-tested under Wine.
 
-Windows uses the D3D11 and XAudio2 backends rather than the OpenGL/SDL2 path,
-but **only the Linux build is verified end-to-end in this preview**. Treat the
-Windows binary as untested.
+Windows uses the D3D11 and XAudio2 backends rather than the OpenGL/SDL2 path.
+The MinGW cross-build is verified: it links (`otogi1.exe`, 18.4 MB) and under
+Wine it reaches the title's display-mode call without faulting. MSVC is
+untested, and **only the Linux build is verified end-to-end**.
 
 ## Run
 
