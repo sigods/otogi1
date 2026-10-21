@@ -37,7 +37,8 @@ Details and exact log lines: [`docs/BOOT_LOG.md`](docs/BOOT_LOG.md).
   Windows uses Direct3D 11 and XAudio2 from the Windows SDK instead.
 - Python 3.10+ with `capstone` — `regen.sh` drives the vendored toolkit's
   Python tools.
-- Your own copy of the game, unpacked into `game/` (see below).
+- Your own legally obtained copy of the game, as an Xbox disc image (`.iso`).
+  Step 3 unpacks it into `game/`; its `default.xbe` is what `regen.sh` reads.
 - The recompiled C in `src/game/recomp/gen/`, produced by `regen.sh`. It is
   generated, not tracked.
 
@@ -191,17 +192,6 @@ Every switch is an environment variable, read once at startup.
 | `RECOMP_AUDIO_WAV=path` | Capture the mixed output to a WAV file |
 | `RECOMP_SYNC_IO=1` | Complete `NtReadFile` inline (pre-audio-fix behaviour) |
 
-## Game data
-
-No game data, disc image, XBE, or generated source is distributed here.
-`.gitignore` excludes `game/`, `*.iso`, `*.xbe`, and `src/game/recomp/gen/`. The
-one tracked `.xbe` is the toolkit's own conformance fixture, and the CI job
-allows exactly that file.
-
-Supply your own legally obtained copy, unpack it so that `game/default.xbe`
-exists, and run `regen.sh`. Do not use this project with data you are not
-entitled to use.
-
 ## Contributing
 
 Corrections, bug reports and pull requests are welcome — read
@@ -215,7 +205,10 @@ Credits, the AI assistance disclosure and upstream attribution are in
 
 ## Licensing
 
-This project's own source is **GPL-3.0-only** — see [`LICENSE`](LICENSE).
+This project's own source is **GPL-3.0-only** — see [`LICENSE`](LICENSE). No game
+data, disc image, XBE or generated recompiled source is distributed here; you
+supply your own copy (see Requirements).
+
 `third_party/xboxrecomp/` is a vendored, MIT-licensed copy of the toolkit with
 local changes; it remains MIT (see its `LICENSE` and `UPSTREAM.md`). Third-party
 attribution, including the xemu-derived MCPX APU and NV2A sources, is in
