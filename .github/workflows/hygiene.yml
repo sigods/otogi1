@@ -25,7 +25,7 @@ jobs:
           # The one .xbe allowed is the toolkit's own conformance fixture.
           bad=$(git ls-files |
             grep -Ei '^(game/|.*\.(iso|xmv|xps|xbe)$)' |
-            grep -vE '^third_party/xboxrecomp/tools/conformance/test\.xbe$' || true)
+            grep -vE '^xboxrecomp/tools/conformance/test\.xbe$' || true)
           if [ -n "$bad" ]; then
             echo "::error::game data or an XBE is tracked in this repository"
             echo "$bad"

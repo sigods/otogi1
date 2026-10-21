@@ -20,9 +20,9 @@ How to work with an agent on this repository is in
 This project stands on other people's work:
 
 - **[xboxrecomp](https://github.com/sp00nznet/xboxrecomp)** and its authors — the
-  static recompilation toolkit, vendored at `third_party/xboxrecomp/` under the
+  static recompilation toolkit, a submodule at `xboxrecomp/` under the
   MIT license. Local changes are listed in
-  `third_party/xboxrecomp/UPSTREAM.md`.
+  `xboxrecomp/UPSTREAM.md`.
 - **xemu** and its contributors — the MCPX APU and NV2A derived sources
   attributed in [`NOTICE`](NOTICE).
 - **FromSoftware, Inc. and Sega Corporation** — *Otogi: Myth of Demons* itself,

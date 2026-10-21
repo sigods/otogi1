@@ -6,7 +6,7 @@ All Python steps run **from inside the toolkit clone** (`tools/` lives there).
 
 ## Step 0 — layout
 
-- `third_party/xboxrecomp/` — the toolkit, vendored in this repository. Builds
+- `xboxrecomp/` — the toolkit, a submodule of this repository. Builds
   libraries only. No `main()`, so it can never produce a game `.exe`.
 - **this repo** — copied from `templates/new-game/`. Holds `main.c` and the
   generated C. Builds the `.exe`.

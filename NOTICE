@@ -9,11 +9,11 @@ License
 This project's own source is licensed under the GNU General Public License,
 version 3 only (GPL-3.0-only). The full text is in `LICENSE`.
 
-`third_party/xboxrecomp/` is a vendored copy of the MIT-licensed
+`xboxrecomp/` is a pinned submodule of the MIT-licensed
 [xboxrecomp](https://github.com/sp00nznet/xboxrecomp) toolkit, with local
 changes. It remains under its original MIT license (see
-`third_party/xboxrecomp/LICENSE`); vendoring it here does not relicense it.
-The exact upstream base is recorded in `third_party/xboxrecomp/UPSTREAM.md`.
+`xboxrecomp/LICENSE`); including this fork does not relicense it.
+The exact upstream base is recorded in `xboxrecomp/UPSTREAM.md`.
 
 Game content
 ------------
@@ -27,9 +27,9 @@ Runtime toolkit
 ---------------
 The executable is built against the `xboxrecomp` toolkit
 (https://github.com/sp00nznet/xboxrecomp), which is MIT-licensed. A copy of the
-toolkit, with this project's changes, is vendored at `third_party/xboxrecomp/`;
+toolkit, with this project's changes, is a submodule at `xboxrecomp/`;
 the upstream base and the delta are recorded in
-`third_party/xboxrecomp/UPSTREAM.md`. The toolkit's own `LICENSE` and `NOTICE`
+`xboxrecomp/UPSTREAM.md`. The toolkit's own `LICENSE` and `NOTICE`
 govern that code.
 
 Third-party libraries

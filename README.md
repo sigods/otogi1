@@ -35,14 +35,14 @@ Details and exact log lines: [`docs/BOOT_LOG.md`](docs/BOOT_LOG.md).
 - CMake 3.20+, a C11 compiler, Ninja (optional).
 - On Linux only: SDL2 and libepoxy for the video, audio and window path.
   Windows uses Direct3D 11 and XAudio2 from the Windows SDK instead.
-- Python 3.10+ with `capstone` — `regen.sh` drives the vendored toolkit's
+- Python 3.10+ with `capstone` — `regen.sh` drives the toolkit's
   Python tools.
 - Your own legally obtained copy of the game, as an Xbox disc image (`.iso`).
   Step 3 unpacks it into `game/`; its `default.xbe` is what `regen.sh` reads.
 - The recompiled C in `src/game/recomp/gen/`, produced by `regen.sh`. It is
   generated, not tracked.
 
-The runtime toolkit is vendored at `third_party/xboxrecomp/`; no separate
+The runtime toolkit is a submodule at `xboxrecomp/`; no separate
 checkout is needed.
 
 ## Step by step
@@ -54,7 +54,7 @@ POSIX shell — Linux, or Git Bash on Windows.
 
    | Tool | Version | Notes |
    |---|---|---|
-   | Python | 3.10 or newer | runs the vendored toolkit's Python tools |
+   | Python | 3.10 or newer | runs the toolkit's Python tools |
    | capstone | 5.x | `python3 -m pip install --user capstone` |
    | CMake | 3.20 or newer | |
    | C compiler | C11 | GCC or Clang on Linux; MinGW-w64 for the verified Windows build |
@@ -68,11 +68,11 @@ POSIX shell — Linux, or Git Bash on Windows.
    cmake version 3.31.6
    ```
 
-2. **Clone the repository.** The toolkit is vendored inside it — no second
-   checkout, no patch to apply.
+2. **Clone the repository.** The toolkit is a submodule pinned to this
+   project's fork — no second checkout, no patch to apply.
 
    ```
-   git clone https://github.com/sigods/otogi1
+   git clone --recursive https://github.com/sigods/otogi1
    cd otogi1
    ```
 
@@ -82,9 +82,9 @@ POSIX shell — Linux, or Git Bash on Windows.
    reader probes the known partition bases.
 
    ```
-   $ cd third_party/xboxrecomp
-   $ python3 -m tools.xiso unpack "/path/to/Otogi - Myth of Demons (USA).iso" -o ../../game
-   $ cd ../..
+   $ cd xboxrecomp
+   $ python3 -m tools.xiso unpack "/path/to/Otogi - Myth of Demons (USA).iso" -o ../game
+   $ cd ..
    ```
 
    You should end up with `game/default.xbe` next to `chr/`, `map/`, `sfx/`,
@@ -209,7 +209,8 @@ This project's own source is **GPL-3.0-only** — see [`LICENSE`](LICENSE). No g
 data, disc image, XBE or generated recompiled source is distributed here; you
 supply your own copy (see Requirements).
 
-`third_party/xboxrecomp/` is a vendored, MIT-licensed copy of the toolkit with
-local changes; it remains MIT (see its `LICENSE` and `UPSTREAM.md`). Third-party
+`xboxrecomp/` is a submodule pinned to this project's fork of the MIT-licensed
+toolkit, carrying local changes; it remains MIT (see its `LICENSE` and
+`UPSTREAM.md`). Third-party
 attribution, including the xemu-derived MCPX APU and NV2A sources, is in
 [`NOTICE`](NOTICE).

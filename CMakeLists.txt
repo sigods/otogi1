@@ -14,8 +14,8 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # ── xboxrecomp toolkit ──────────────────────────────────────────
 
-set(XBOXRECOMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/xboxrecomp" CACHE PATH
-    "Path to the xboxrecomp toolkit root directory (vendored by default)")
+set(XBOXRECOMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/xboxrecomp" CACHE PATH
+    "Path to the xboxrecomp toolkit root directory (submodule by default)")
 
 # Builds the runtime libraries and provides the 'xboxrecomp' umbrella target.
 add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)

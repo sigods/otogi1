@@ -23,10 +23,10 @@ Read this file first, every session. Then `docs/INDEX.md`.
    - `src/game/recomp_manual.c` — hand-written replacements for individual
      lifted functions, registered in the manual lookup table.
    - the `xboxrecomp` toolkit itself — if the bug is general (lifter, kernel
-     shim, D3D translation). It is vendored at `third_party/xboxrecomp/`, so
-     edits there are normal changes to this repository: record each one in
-     `third_party/xboxrecomp/UPSTREAM.md` and offer general fixes upstream
-     rather than letting the vendored copy drift silently.
+     shim, D3D translation). It is a submodule pinned to the fork at
+     `sigods/xboxrecomp`, branch `otogi1-linux-v0.1`: commit there, bump the
+     submodule pointer here, record the change in `xboxrecomp/UPSTREAM.md`, and
+     offer general fixes upstream rather than letting the fork drift silently.
 3. **Never distribute game data or generated source.** `game/` and
    `src/game/recomp/gen/` stay gitignored. The user supplies their own disc.
 4. **Never commit a disc image, XBE, or extracted assets.**
@@ -37,8 +37,9 @@ Read this file first, every session. Then `docs/INDEX.md`.
   only have the less-complete OpenGL 3.3 backend.
 - Python 3.10+ with `capstone`.
 - CMake 3.20+, Visual Studio 2022 (C/C++ desktop workload).
-- The toolkit is vendored at `third_party/xboxrecomp/` (no separate checkout;
-  pass `-DXBOXRECOMP_DIR=` only to test against another tree).
+- The toolkit is a submodule at `xboxrecomp/`: clone with `--recursive`, or run
+  `git submodule update --init` in an existing checkout. Pass
+  `-DXBOXRECOMP_DIR=` only to test against another tree.
 - `extract-xiso` or the toolkit's `tools.xiso` to unpack the disc.
 - xemu + Ghidra/IDA (optional but strongly recommended — see §6).
 
