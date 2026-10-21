@@ -4,6 +4,13 @@ Otogi: Myth of Demons — technical preview v0.1
 This repository contains a static recompilation of the original Xbox release of
 *Otogi: Myth of Demons*. It ships no game data.
 
+License
+-------
+This project's own source is licensed under the GNU General Public License,
+version 3 only (GPL-3.0-only). The full text is in `LICENSE`. The
+`xboxrecomp-linux.patch` file is derived from MIT-licensed toolkit code and
+remains under those terms.
+
 Game content
 ------------
 *Otogi: Myth of Demons* and all of its assets, code, names, and marks are

@@ -76,12 +76,13 @@ disc. Do not use this project with data you are not entitled to use.
 
 - No rendering: the GPU command stream is not decoded and the screen stays
   blank. This is the main blocker for a visual build.
-- The intro movie / XMV path is incomplete. The demux expects asynchronous read
-  completion, and the current run reaches `SetDisplayMode` and then stalls in
-  that path. The headless main loop has been observed with the movie skipped.
+- The intro movie / XMV path is incomplete. Its demux expects asynchronous read
+  completion, which the kernel now provides by default, but the movie path is
+  still unverified.
 - Input is not usable for play; pad support is experimental and has only been
   exercised during boot.
-- Audio is experimental and unverified.
+- Audio is experimental: streamed menu BGM is verified, but the DSP is a
+  passthrough stub, so effects and the menu flow are unverified.
 - Only the Linux build is documented here. A Windows host path exists in
   `src/game/main.c`, but it is not verified in this checkout.
 - This is a single-title research preview, not a general Xbox runtime. No
@@ -89,12 +90,16 @@ disc. Do not use this project with data you are not entitled to use.
 
 ## Licensing
 
-This repository does not currently carry its own top-level `LICENSE` or
-`NOTICE` file. The runtime it builds against, `xboxrecomp` (default checkout
+This project's own source is licensed under the **GNU General Public License,
+version 3 only** (GPL-3.0-only). The full text is in [`LICENSE`](LICENSE);
+[`NOTICE`](NOTICE) records the third-party attribution.
+
+The runtime it builds against, `xboxrecomp` (default checkout
 `../xboxrecomp`), is MIT-licensed; its `LICENSE` is at
-`../xboxrecomp/LICENSE`. Third-party attribution, including the xemu-derived
-MCPX APU and NV2A sources, is in `../xboxrecomp/NOTICE`, and the applicable
-LGPL-2.1 text is `../xboxrecomp/LICENSES/LGPL-2.1.txt`. Consult those files for
-the actual terms. The xemu-derived components remain under their upstream
-licences and are not relicensed by this project. A source release that includes
-the runtime must include those licensing files with it.
+`../xboxrecomp/LICENSE`. The toolkit changes this project needs are carried as
+`xboxrecomp-linux.patch`, which applies to upstream tag `v0.15.0`; that patch is
+derived from MIT-licensed code and remains under those terms. Third-party
+attribution, including the xemu-derived MCPX APU and NV2A sources, is in
+`../xboxrecomp/NOTICE`, and the applicable LGPL-2.1 text is
+`../xboxrecomp/LICENSES/LGPL-2.1.txt`. The xemu-derived components remain under
+their upstream licences and are not relicensed by this project.
