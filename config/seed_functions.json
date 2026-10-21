@@ -1,0 +1,11 @@
+{
+  "_comment": "Title-specific function seeds and overrides for Otogi 1. Generated C is never edited; corrections live here. Schema to be confirmed against sp00nznet/burnout3 config/seed_functions.json before first use.",
+  "title_id": "0x46530002",
+  "title_name": "Otogi: Myth of Demons",
+  "seed_functions": [],
+  "manual_overrides": [],
+  "notes": [
+    "Populate after Step 3/4.5 once function classification is known.",
+    "Entry point and kernel imports recorded from Step 2."
+  ]
+}
