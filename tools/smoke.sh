@@ -51,12 +51,17 @@ echo "smoke: $BIN (${SECS}s per run)"
 )
 rc=$?
 
-[ "$rc" -eq 124 ] && ok "ran for ${SECS}s and was stopped by the timeout" \
-                  || bad "exited early (status $rc)"
+if [ "$rc" -eq 124 ]; then
+    ok "ran for ${SECS}s and was stopped by the timeout"
+else
+    bad "exited early (status $rc)"
+fi
 
-grep -q "SetDisplayMode" "$LOG" \
-    && ok "reached [AV] SetDisplayMode" \
-    || bad "never reached [AV] SetDisplayMode"
+if grep -q "SetDisplayMode" "$LOG"; then
+    ok "reached [AV] SetDisplayMode"
+else
+    bad "never reached [AV] SetDisplayMode"
+fi
 
 if grep -qiE "segmentation|sigsegv" "$LOG"; then
     bad "log contains a segmentation fault"
@@ -103,9 +108,11 @@ fi
 )
 rc=$?
 
-grep -q "OHCI: two controllers" "$LOG" \
-    && ok "OHCI comes up with RECOMP_USB=1" \
-    || bad "OHCI did not come up with RECOMP_USB=1 (status $rc)"
+if grep -q "OHCI: two controllers" "$LOG"; then
+    ok "OHCI comes up with RECOMP_USB=1"
+else
+    bad "OHCI did not come up with RECOMP_USB=1 (status $rc)"
+fi
 
 if grep -qiE "segmentation|sigsegv" "$LOG"; then
     bad "segmentation fault in the RECOMP_USB run"
