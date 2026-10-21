@@ -7,9 +7,13 @@ This repository contains a static recompilation of the original Xbox release of
 License
 -------
 This project's own source is licensed under the GNU General Public License,
-version 3 only (GPL-3.0-only). The full text is in `LICENSE`. The
-`xboxrecomp-linux.patch` file is derived from MIT-licensed toolkit code and
-remains under those terms.
+version 3 only (GPL-3.0-only). The full text is in `LICENSE`.
+
+`third_party/xboxrecomp/` is a vendored copy of the MIT-licensed
+[xboxrecomp](https://github.com/sp00nznet/xboxrecomp) toolkit, with local
+changes. It remains under its original MIT license (see
+`third_party/xboxrecomp/LICENSE`); vendoring it here does not relicense it.
+The exact upstream base is recorded in `third_party/xboxrecomp/UPSTREAM.md`.
 
 Game content
 ------------
