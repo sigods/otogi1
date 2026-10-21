@@ -1550,10 +1550,10 @@ index 4fd7692..5945058 100644
      if (unresolved > 0) {
          xbox_log(XBOX_LOG_WARN, XBOX_LOG_THUNK,
 diff --git a/src/kernel/nv2a_pb_exec.c b/src/kernel/nv2a_pb_exec.c
-index a513bc7..b6b674e 100644
+index a513bc7..6ace470 100644
 --- a/src/kernel/nv2a_pb_exec.c
 +++ b/src/kernel/nv2a_pb_exec.c
-@@ -569,11 +569,24 @@ static int fetch_attr(const VertexAttr *a, uint32_t index, float out[4])
+@@ -569,11 +569,46 @@ static int fetch_attr(const VertexAttr *a, uint32_t index, float out[4])
              return 0;
          p = (const uint8_t *)s_gpu.inline_buf + at;
      } else {
@@ -1579,10 +1579,49 @@ index a513bc7..b6b674e 100644
              return 0;
 -        p = mem + at;
 +        p = mem + addr;
++    }
++
++    {
++        static int vtx_dump = -1;
++        if (vtx_dump < 0)
++            vtx_dump = getenv("RECOMP_VTX_DUMP") != NULL;
++        if (vtx_dump && index == 0 && s_gpu.batches_program < 3) {
++            const uint32_t *w32 = (const uint32_t *)p;
++            fprintf(stderr, "  [VTX] b=%u type=%u size=%u stride=%u off=0x%X "
++                            "raw=%08X %08X %08X %08X %08X %08X %08X %08X\n",
++                    s_gpu.batches_program, a->type, a->size, a->stride,
++                    a->offset, w32[0], w32[1], w32[2], w32[3],
++                    w32[4], w32[5], w32[6], w32[7]);
++            if (a->type == 2 && a->size == 4 && a->stride) {
++                int k;
++                for (k = 1; k < 4; k++) {
++                    const float *q = (const float *)(p + (size_t)k * a->stride);
++                    fprintf(stderr, "  [VTX]   v%d = %.3f %.3f %.3f %.3f\n",
++                            k, q[0], q[1], q[2], q[3]);
++                }
++            }
++        }
      }
  
      switch (a->type) {
-@@ -1482,7 +1495,6 @@ static void put_pixel(uint8_t *mem, uint32_t bpp, int x, int y, uint32_t argb)
+@@ -589,6 +624,16 @@ static int fetch_attr(const VertexAttr *a, uint32_t index, float out[4])
+     case 2:                                  /* float */
+         for (i = 0; i < a->size && i < 4; i++)
+             out[i] = ((const float *)p)[i];
++        /* Screen-space quads: the title leaves the fourth component of its
++         * position at zero and its own vertex program inverts it (`rcp`).
++         * A zero would make that infinite and every vertex would be rejected
++         * by the non-finite guard, yet the same title stores a real w on 3D
++         * vertices -- so the zero is a 2D-path convention, not data the
++         * program can consume. Supply the homogeneous 1.0 the program assumes.
++         * Only the position attribute is corrected: other float4 attributes
++         * keep exactly what the buffer holds. */
++        if (a == &s_gpu.attr[0] && a->size == 4 && out[3] == 0.0f)
++            out[3] = 1.0f;
+         return 1;
+     case 4:                                  /* unsigned byte, normalised */
+         for (i = 0; i < a->size && i < 4; i++)
+@@ -1482,7 +1527,6 @@ static void put_pixel(uint8_t *mem, uint32_t bpp, int x, int y, uint32_t argb)
      if (s_swz_on && ((uint32_t)x >> ((s_gpu.format >> 16) & 0xF)
                       || (uint32_t)y >> ((s_gpu.format >> 24) & 0xF)))
          return;
@@ -1590,7 +1629,7 @@ index a513bc7..b6b674e 100644
      if ((argb & 0x00FFFFFFu) > (s_gpu.pixel_max & 0x00FFFFFFu))
          s_gpu.pixel_max = argb;
      xi = surface_index(x, y, &row);
-@@ -2993,7 +3005,7 @@ static void raster_batch_program(void)
+@@ -2993,7 +3037,7 @@ static void raster_batch_program(void)
          }
          /* Spread out: one every 20000 program batches, so a run that spends
           * its first half in menus still traces the 3D scene. */
@@ -1599,6 +1638,27 @@ index a513bc7..b6b674e 100644
              float in[4];
              left--;
              fprintf(stderr, "[VTRACE] prim %u n %u idx %u %u %u\n", s_gpu.prim,
+diff --git a/src/kernel/nv2a_vsh_interp.c b/src/kernel/nv2a_vsh_interp.c
+index c1b48e4..a5d9984 100644
+--- a/src/kernel/nv2a_vsh_interp.c
++++ b/src/kernel/nv2a_vsh_interp.c
+@@ -170,13 +170,14 @@ static void dump_program(uint32_t start)
+         dis_src(bb, sizeof bb, ins, 1);
+         dis_src(c, sizeof c, ins, 2);
+         fprintf(stderr, "  [VSH] %3u %-4s %-4s A=%s B=%s C=%s  R%u mac%X ilu%X"
+-                " out%s%u m%X%s%s\n", s,
++                " out%s%u m%X%s%s  w=%08X %08X %08X %08X\n", s,
+                 k_mac[field(ins, 1, 21, 4)], k_ilu[field(ins, 1, 25, 3)],
+                 a, bb, c, field(ins, 3, 20, 4), field(ins, 3, 24, 4),
+                 field(ins, 3, 16, 4), field(ins, 3, 11, 1) ? "o" : "c",
+                 field(ins, 3, 3, 8), field(ins, 3, 12, 4),
+                 field(ins, 3, 2, 1) ? " ilu" : " mac",
+-                field(ins, 3, 0, 1) ? " FINAL" : "");
++                field(ins, 3, 0, 1) ? " FINAL" : "",
++                ins[0], ins[1], ins[2], ins[3]);
+         if (field(ins, 3, 0, 1))
+             break;
+     }
 diff --git a/src/kernel/xbox_memory_layout.c b/src/kernel/xbox_memory_layout.c
 index b723a92..c859091 100644
 --- a/src/kernel/xbox_memory_layout.c

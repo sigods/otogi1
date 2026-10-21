@@ -153,3 +153,23 @@ Template:
   ordinals resolve, no crash (stopped by the timeout).
 - This is not part of the v0.1 Linux release; it just means the tree no longer
   fails to build when `WIN32` is defined.
+
+## 2026-10-21 — rendering: the zero-w screen-space convention
+
+- Every vertex of the title's 2D quads carries `w = 0` (`91.5 85.5 0 0`,
+  `603.5 85.5 0 0`, ...), and its own vertex program inverts that component
+  (`rcp`) to build the homogeneous position. A zero makes the reciprocal
+  infinite, so `raster_xf_clipped`'s non-finite guard rejected every triangle:
+  the pushbuffer advanced, the clears wrote the surface, and the screen stayed
+  black.
+- The same title stores a real `w` on its 3D vertices, so the zero is a
+  property of the 2D path rather than data the program can consume.
+  `fetch_attr` now supplies `1.0` for attribute 0 when a float4 position
+  arrives with a zero fourth component; other attributes are passed through
+  untouched.
+- With the fix a 12-instruction program runs 195 batches / 780 vertices per
+  capture with no triangles dropped. What reaches the screen is still fades
+  and solid panels (3–5 distinct colours), because the only vertex program the
+  title uploads writes constant texture coordinates (`oT0 = v4.wwww`), so no
+  textured content is drawn through the program path. Fixed-function batches
+  and texture binding are the next thing to look at, not the interpreter.
