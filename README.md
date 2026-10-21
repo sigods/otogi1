@@ -44,65 +44,143 @@ Details and exact log lines: [`docs/BOOT_LOG.md`](docs/BOOT_LOG.md).
 The runtime toolkit is vendored at `third_party/xboxrecomp/`; no separate
 checkout is needed.
 
-## Build
+## Step by step
 
-### Linux
+The same steps this project is developed against, in order. Commands are for a
+POSIX shell — Linux, or Git Bash on Windows.
 
-```sh
-./regen.sh                 # once, after unpacking game/default.xbe
-cmake -S . -B build-linux
-cmake --build build-linux -j8
-```
+1. **Install the prerequisites.**
 
-The executable is `build-linux/bin/otogi1`.
+   | Tool | Version | Notes |
+   |---|---|---|
+   | Python | 3.10 or newer | runs the vendored toolkit's Python tools |
+   | capstone | 5.x | `python3 -m pip install --user capstone` |
+   | CMake | 3.20 or newer | |
+   | C compiler | C11 | GCC or Clang on Linux; MinGW-w64 for the verified Windows build |
+   | Ninja | optional | used by the commands below |
+   | SDL2, libepoxy | Linux only | video, audio and window path |
+
+   ```
+   $ python3 -c "import capstone; print(capstone.__version__)"
+   5.0.1
+   $ cmake --version | head -1
+   cmake version 3.31.6
+   ```
+
+2. **Clone the repository.** The toolkit is vendored inside it — no second
+   checkout, no patch to apply.
+
+   ```
+   git clone https://github.com/sigods/otogi1
+   cd otogi1
+   ```
+
+3. **Unpack your disc image** into `game/`, using the toolkit's own XDVDFS
+   reader. Otogi's USA image carries a video partition in front of the
+   filesystem, so tools that assume the filesystem starts at offset 0 fail; this
+   reader probes the known partition bases.
+
+   ```
+   $ cd third_party/xboxrecomp
+   $ python3 -m tools.xiso unpack "/path/to/Otogi - Myth of Demons (USA).iso" -o ../../game
+   $ cd ../..
+   ```
+
+   You should end up with `game/default.xbe` next to `chr/`, `map/`, `sfx/`,
+   `movie/` and the rest — 1,121 files, about 2.2 GB.
+
+4. **Regenerate the C.**
+
+   ```
+   $ ./regen.sh
+   ==> xbe_parser
+   ==> disasm
+   ==> func_id
+   ==> abi_analysis  (never skip: silent wrong signatures otherwise)
+   ==> recomp  (--split 250: prevents OOM)
+   ==> done. Now: cmake --build build-xr --config Release
+   ```
+
+   This writes `src/game/recomp/gen/`, which is gitignored. It takes a few
+   minutes and is only needed once per disc.
+
+5. **Build.**
+
+   ```
+   $ cmake -S . -B build-linux -G Ninja
+   $ cmake --build build-linux -j8
+   ```
+
+   The executable is `build-linux/bin/otogi1`, about 19 MB.
+
+6. **Run it from the project root.**
+
+   ```
+   $ ./build-linux/bin/otogi1
+   ```
+
+   The binary opens `game/default.xbe` relative to the current directory. Within
+   a few seconds the log shows the title's own display-mode call and the kernel
+   event it builds for the GPU fence:
+
+   ```
+   [AV] SetDisplayMode mode=0x080F0D12 format=0x00000012 pitch=2560 fb=0x00404000
+   [KERNEL] event 0x00106B6C built by the title: host event created (notification)
+   ```
+
+   After that it sits in the title's main loop. `Ctrl+C` ends it.
+
+7. **Turn on the implemented parts.** Each is opt-in:
+
+   ```
+   $ RECOMP_FB_WINDOW=1 RECOMP_AC97_READY=1 ./build-linux/bin/otogi1   # window + BGM
+   $ RECOMP_PB_EXEC=1 ./build-linux/bin/otogi1                          # GPU command stream
+   $ RECOMP_USB=1 RECOMP_AUTOPRESS=1 ./build-linux/bin/otogi1           # pad enumeration
+   ```
+
+   On a headless box, run the window under `Xvfb`. The full switch list is
+   below.
 
 ### Windows
 
-Two paths exist, and only the second has been verified. MSVC 2022 with the
-**Desktop development with C++** workload (x64 and the Windows SDK) is supported
-but **untested**: the SDK supplies Direct3D 11, DXGI, `d3dcompiler` and
-XAudio2, so no SDL2 is needed on Windows. `regen.sh` is a POSIX shell script:
-run it once from Git Bash or WSL.
+Steps 1–3 are the same. `regen.sh` is a POSIX shell script, so run step 4 once
+from Git Bash or WSL. Then pick a toolchain:
 
-```bat
-./regen.sh
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Release --parallel
+- **MinGW-w64 cross-build — verified.** It links, and under Wine it reaches the
+  title's display-mode call without faulting:
+
+  ```
+  $ cmake -S . -B build-win -G Ninja \
+      -DCMAKE_SYSTEM_NAME=Windows \
+      -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
+      -DCMAKE_FIND_ROOT_PATH=/usr/x86_64-w64-mingw32 \
+      -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER
+  $ cmake --build build-win -j8
+  ```
+
+  The result is `build-win/bin/otogi1.exe`.
+
+- **MSVC 2022 — supported, untested.** Needs the *Desktop development with C++*
+  workload; the Windows SDK supplies Direct3D 11, DXGI, `d3dcompiler` and
+  XAudio2, so no SDL2 is required:
+
+  ```
+  cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+  cmake --build build --config Release --parallel
+  ```
+
+  The result is `build\bin\Release\otogi1.exe`.
+
+Run from the project root, like on Linux:
+
+```
+./build-win/bin/otogi1.exe        # MinGW cross-build
+.\build\bin\Release\otogi1.exe    # MSVC
 ```
 
-The executable is `build\bin\Release\otogi1.exe`.
+## Switches
 
-Cross-building from Linux with MinGW-w64 is also supported, provided the mingw
-runtime ships the D3D11/DXGI/XAudio2 import libraries:
-
-```sh
-cmake -S . -B build-win -G Ninja \
-  -DCMAKE_SYSTEM_NAME=Windows \
-  -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
-  -DCMAKE_FIND_ROOT_PATH=/usr/x86_64-w64-mingw32 \
-  -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER
-cmake --build build-win -j8
-```
-
-That produces `build-win/bin/otogi1.exe`, which can be smoke-tested under Wine.
-
-Windows uses the D3D11 and XAudio2 backends rather than the OpenGL/SDL2 path.
-The MinGW cross-build is verified: it links (`otogi1.exe`, 18.4 MB) and under
-Wine it reaches the title's display-mode call without faulting. MSVC is
-untested, and **only the Linux build is verified end-to-end**.
-
-## Run
-
-Run from the project root — the binary opens `game/default.xbe` relative to the
-current directory:
-
-```sh
-./build-linux/bin/otogi1          # Linux
-./build-win/bin/otogi1.exe        # Windows, MinGW cross-build
-.\build\bin\Release\otogi1.exe    # Windows, MSVC (untested)
-```
-
-Useful switches:
+Every switch is an environment variable, read once at startup.
 
 | Variable | Effect |
 |---|---|
