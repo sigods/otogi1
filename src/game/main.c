@@ -389,15 +389,16 @@ int main(int argc, char **argv)
 
 /* ── POSIX host ────────────────────────────────────────────── */
 
-int main(void)
+/* The framebuffer window owns the process main thread (AppKit requires it on
+ * macOS) and runs this boot sequence on a pthread. With RECOMP_FB_WINDOW
+ * unset it just calls the function, so the default stays headless. Declared
+ * here because the toolkit does not export video_player.h. */
+int xbox_HostWindowMain(int (*guest_main)(void));
+
+static int otogi_guest_main(void)
 {
     void *xbe_data = NULL;
     size_t xbe_size = 0;
-
-    /* Unbuffered output so CRT-boot progress is observable when the process
-     * dies or hangs. */
-    setvbuf(stdout, NULL, _IONBF, 0);
-    setvbuf(stderr, NULL, _IONBF, 0);
 
     fprintf(stderr, "=== Otogi: Myth of Demons - Static Recompilation ===\n");
 
@@ -468,6 +469,17 @@ int main(void)
     free(xbe_data);
 
     return 0;
+}
+
+int main(void)
+{
+    /* Unbuffered output so CRT-boot progress is observable when the process
+     * dies or hangs. Set before the window loop: its own diagnostics matter
+     * as much as the guest's. */
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
+
+    return xbox_HostWindowMain(otogi_guest_main);
 }
 
 #endif /* _WIN32 */
