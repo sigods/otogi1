@@ -1,0 +1,11 @@
+{
+  "$schema": "https://recomp.fyi/schema/v1.json",
+  "game": "Otogi: Myth of Demons",
+  "system": "Xbox",
+  "type": "recomp",
+  "original": { "region": "USA" },
+  "status": "in-progress",
+  "targets": ["Linux"],
+  "help": ["XMV video decoding", "USB HID interrupt polling", "3D scene compositing"],
+  "notes": "Boots the retail XBE, runs the title's own main loop and streams menu BGM. Static recompilation with a vendored toolkit. The screen shows UI only: the scene source buffer is never produced by the title in this state. Controller input is not wired."
+}
