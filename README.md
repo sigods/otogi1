@@ -131,6 +131,11 @@ POSIX shell — Linux, or Git Bash on Windows.
 
    After that it sits in the title's main loop. `Ctrl+C` ends it.
 
+   `./tools/smoke.sh build-linux` re-checks the claims above against an
+   existing build: it runs the title twice, once plain and once with
+   `RECOMP_USB=1`, and asserts the boot log line, a clean exit, non-silent
+   audio, and that the USB controllers appear only in the second run.
+
 7. **Turn on the implemented parts.** Each is opt-in:
 
    ```
