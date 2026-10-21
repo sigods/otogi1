@@ -116,13 +116,14 @@ entitled to use.
 
 ## Contributing
 
-Corrections, bug reports and pull requests are welcome — see
-[`CONTRIBUTORS.md`](CONTRIBUTORS.md) for credits and the two rules that matter
-most: never commit game data, and back every claim with the evidence behind it.
-The CI job `repo hygiene` fails if game data or an XBE is ever tracked.
+Corrections, bug reports and pull requests are welcome — read
+[`CONTRIBUTING.md`](CONTRIBUTING.md) first. Two rules matter most: never commit
+game data (the `repo hygiene` job fails if one appears), and back every claim
+with the evidence behind it.
 
-Working with an AI agent? Point it at [`AGENTS.md`](AGENTS.md) first; it lists
-the pipeline gates that fail silently.
+Credits, the AI assistance disclosure and upstream attribution are in
+[`CONTRIBUTORS.md`](CONTRIBUTORS.md). Working with an AI agent? Point it at
+[`AGENTS.md`](AGENTS.md) first; it lists the pipeline gates that fail silently.
 
 ## Licensing
 
