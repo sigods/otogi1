@@ -18,7 +18,7 @@
 # Requires: game/ extracted next to the project, python3 for the WAV check.
 set -uo pipefail
 
-ROOT=$(cd "$(dirname "$0")/.." && pwd)
+ROOT=$(cd -- "$(dirname -- "$0")/.." >/dev/null && pwd)
 BUILD=${1:-${BUILD_DIR:-$ROOT/build-linux}}
 BIN=$BUILD/bin/otogi1
 SECS=${SMOKE_SECS:-15}
