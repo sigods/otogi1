@@ -10,6 +10,10 @@ interpreter, and no hand-written substitute for the title's own logic.
 runs the title's own main loop, streams the menu BGM, and opens a window. The
 screen shows UI only; the 3D scene is not drawn yet.
 
+**AI-assisted.** Code, debugging, and documentation were produced with
+substantial AI assistance; the maintainer reviewed and verified every change
+and claim in this repository.
+
 ## Status
 
 | Component | State | Notes |
@@ -80,11 +84,3 @@ This project's own source is **GPL-3.0-only** — see [`LICENSE`](LICENSE).
 local changes; it remains MIT (see its `LICENSE` and `UPSTREAM.md`). Third-party
 attribution, including the xemu-derived MCPX APU and NV2A sources, is in
 [`NOTICE`](NOTICE).
-
-## Use of AI
-
-This project was developed with substantial AI assistance: code generation,
-debugging, and documentation. **Every change and every claim in this
-repository was reviewed and verified by the maintainer** against observed
-runtime behaviour before being committed. AI-generated text and code should
-still be treated as untrusted until you have checked it yourself.
