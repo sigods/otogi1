@@ -1,10 +1,11 @@
 # Otogi: Myth of Demons — technical preview v0.1
 
 A static recompilation of the original Xbox release of *Otogi: Myth of Demons*
-(FromSoftware / Sega, 2002) into a native Linux executable, built with the
-[xboxrecomp](https://github.com/sp00nznet/xboxrecomp) toolkit. The game's own
-x86 code is translated to C and compiled natively — there is no emulator, no
-interpreter, and no hand-written substitute for the title's own logic.
+(FromSoftware / Sega, 2002) into native executables for Linux and Windows,
+built with the [xboxrecomp](https://github.com/sp00nznet/xboxrecomp) toolkit.
+The game's own x86 code is translated to C and compiled natively — there is no
+CPU emulator, no CPU interpreter, and no hand-written substitute for the
+title's own logic.
 
 **This is a research preview, not a playable port.** It boots the retail XBE,
 runs the title's own main loop, streams the menu BGM, and opens a window. The
@@ -29,8 +30,13 @@ Details and exact log lines: [`docs/BOOT_LOG.md`](docs/BOOT_LOG.md).
 
 ## Requirements
 
-- Linux x86-64, CMake 3.20+, a C11 compiler, Ninja (optional).
-- SDL2 and libepoxy for the video/audio/window path.
+- Linux x86-64, or Windows x86-64 (the MinGW cross-build is the verified
+  Windows path; MSVC 2022 is supported but untested).
+- CMake 3.20+, a C11 compiler, Ninja (optional).
+- On Linux only: SDL2 and libepoxy for the video, audio and window path.
+  Windows uses Direct3D 11 and XAudio2 from the Windows SDK instead.
+- Python 3.10+ with `capstone` — `regen.sh` drives the vendored toolkit's
+  Python tools.
 - Your own copy of the game, unpacked into `game/` (see below).
 - The recompiled C in `src/game/recomp/gen/`, produced by `regen.sh`. It is
   generated, not tracked.
@@ -52,10 +58,11 @@ The executable is `build-linux/bin/otogi1`.
 
 ### Windows
 
-Requires Visual Studio 2022 with the **Desktop development with C++** workload
-(MSVC x64 and the Windows SDK). The SDK supplies Direct3D 11, DXGI,
-`d3dcompiler` and XAudio2, so no SDL2 is needed on Windows. `regen.sh` is a
-POSIX shell script: run it once from Git Bash or WSL.
+Two paths exist, and only the second has been verified. MSVC 2022 with the
+**Desktop development with C++** workload (x64 and the Windows SDK) is supported
+but **untested**: the SDK supplies Direct3D 11, DXGI, `d3dcompiler` and
+XAudio2, so no SDL2 is needed on Windows. `regen.sh` is a POSIX shell script:
+run it once from Git Bash or WSL.
 
 ```bat
 ./regen.sh
@@ -91,24 +98,27 @@ current directory:
 
 ```sh
 ./build-linux/bin/otogi1          # Linux
-.\build\bin\Release\otogi1.exe    # Windows
+./build-win/bin/otogi1.exe        # Windows, MinGW cross-build
+.\build\bin\Release\otogi1.exe    # Windows, MSVC (untested)
 ```
 
 Useful switches:
 
 | Variable | Effect |
 |---|---|
-| `RECOMP_FB_WINDOW=1` | Open the SDL window and present frames (off by default) |
+| `RECOMP_FB_WINDOW=1` | Open the SDL framebuffer window and present frames — Linux only, off by default |
 | `RECOMP_PB_EXEC=1` | Software NV2A push-buffer executor |
 | `RECOMP_USB=1` | OHCI controller and emulated pad (`RECOMP_AUTOPRESS=1` sends START+A) |
-| `RECOMP_AC97_READY=1` | MCPX APU and SDL2 audio output |
+| `RECOMP_AC97_READY=1` | MCPX APU and host audio output (SDL2 on Linux, XAudio2 on Windows) |
 | `RECOMP_AUDIO_WAV=path` | Capture the mixed output to a WAV file |
 | `RECOMP_SYNC_IO=1` | Complete `NtReadFile` inline (pre-audio-fix behaviour) |
 
 ## Game data
 
 No game data, disc image, XBE, or generated source is distributed here.
-`.gitignore` excludes `game/`, `*.xbe`, `*.iso`, and `src/game/recomp/gen/`.
+`.gitignore` excludes `game/`, `*.iso`, `*.xbe`, and `src/game/recomp/gen/`. The
+one tracked `.xbe` is the toolkit's own conformance fixture, and the CI job
+allows exactly that file.
 
 Supply your own legally obtained copy, unpack it so that `game/default.xbe`
 exists, and run `regen.sh`. Do not use this project with data you are not
