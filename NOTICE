@@ -26,10 +26,11 @@ must supply your own legally obtained copy of the game; `game/` and
 Runtime toolkit
 ---------------
 The executable is built against the `xboxrecomp` toolkit
-(https://github.com/sp00nznet/xboxrecomp), which is MIT-licensed. This project
-carries the toolkit changes it needs as `xboxrecomp-linux.patch`, which applies
-to upstream tag `v0.15.0`. The toolkit's own `LICENSE` and `NOTICE` govern that
-code.
+(https://github.com/sp00nznet/xboxrecomp), which is MIT-licensed. A copy of the
+toolkit, with this project's changes, is vendored at `third_party/xboxrecomp/`;
+the upstream base and the delta are recorded in
+`third_party/xboxrecomp/UPSTREAM.md`. The toolkit's own `LICENSE` and `NOTICE`
+govern that code.
 
 Third-party libraries
 ---------------------

@@ -114,6 +114,16 @@ Supply your own legally obtained copy, unpack it so that `game/default.xbe`
 exists, and run `regen.sh`. Do not use this project with data you are not
 entitled to use.
 
+## Contributing
+
+Corrections, bug reports and pull requests are welcome — see
+[`CONTRIBUTORS.md`](CONTRIBUTORS.md) for credits and the two rules that matter
+most: never commit game data, and back every claim with the evidence behind it.
+The CI job `repo hygiene` fails if game data or an XBE is ever tracked.
+
+Working with an AI agent? Point it at [`AGENTS.md`](AGENTS.md) first; it lists
+the pipeline gates that fail silently.
+
 ## Licensing
 
 This project's own source is **GPL-3.0-only** — see [`LICENSE`](LICENSE).
