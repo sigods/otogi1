@@ -40,6 +40,8 @@ checkout is needed.
 
 ## Build
 
+### Linux
+
 ```sh
 ./regen.sh                 # once, after unpacking game/default.xbe
 cmake -S . -B build-linux
@@ -48,13 +50,47 @@ cmake --build build-linux -j8
 
 The executable is `build-linux/bin/otogi1`.
 
+### Windows
+
+Requires Visual Studio 2022 with the **Desktop development with C++** workload
+(MSVC x64 and the Windows SDK). The SDK supplies Direct3D 11, DXGI,
+`d3dcompiler` and XAudio2, so no SDL2 is needed on Windows. `regen.sh` is a
+POSIX shell script: run it once from Git Bash or WSL.
+
+```bat
+./regen.sh
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+cmake --build build --config Release --parallel
+```
+
+The executable is `build\bin\Release\otogi1.exe`.
+
+Cross-building from Linux with MinGW-w64 is also supported, provided the mingw
+runtime ships the D3D11/DXGI/XAudio2 import libraries:
+
+```sh
+cmake -S . -B build-win -G Ninja \
+  -DCMAKE_SYSTEM_NAME=Windows \
+  -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
+  -DCMAKE_FIND_ROOT_PATH=/usr/x86_64-w64-mingw32 \
+  -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER
+cmake --build build-win -j8
+```
+
+That produces `build-win/bin/otogi1.exe`, which can be smoke-tested under Wine.
+
+Windows uses the D3D11 and XAudio2 backends rather than the OpenGL/SDL2 path,
+but **only the Linux build is verified end-to-end in this preview**. Treat the
+Windows binary as untested.
+
 ## Run
 
 Run from the project root — the binary opens `game/default.xbe` relative to the
 current directory:
 
 ```sh
-./build-linux/bin/otogi1
+./build-linux/bin/otogi1          # Linux
+.\build\bin\Release\otogi1.exe    # Windows
 ```
 
 Useful switches:

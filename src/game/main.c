@@ -392,8 +392,13 @@ int main(int argc, char **argv)
 /* The framebuffer window owns the process main thread (AppKit requires it on
  * macOS) and runs this boot sequence on a pthread. With RECOMP_FB_WINDOW
  * unset it just calls the function, so the default stays headless. Declared
- * here because the toolkit does not export video_player.h. */
+ * here because the toolkit does not export video_player.h.
+ *
+ * POSIX only: the toolkit builds fb_present_sdl.c on POSIX hosts and the
+ * D3D11 presenter on Windows, so the symbol does not exist there. */
+#if !defined(_WIN32)
 int xbox_HostWindowMain(int (*guest_main)(void));
+#endif
 
 static int otogi_guest_main(void)
 {
@@ -479,7 +484,12 @@ int main(void)
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 
+#if defined(_WIN32)
+    /* Presentation on Windows goes through the toolkit's D3D11 presenter. */
+    return otogi_guest_main();
+#else
     return xbox_HostWindowMain(otogi_guest_main);
+#endif
 }
 
 #endif /* _WIN32 */
