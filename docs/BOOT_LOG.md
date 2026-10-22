@@ -275,3 +275,24 @@ Template:
 - Next step to try: re-read the faulting instruction with `x/gxi` at the stop
   and dump `g_esp` and `rax` in the same sample, so the two readings can be
   reconciled.
+
+## 2026-10-22 — USB: contradiction resolved, the fault is a normal trap
+
+- Direct measurement at the SIGSEGV stop settles the reading: `pc =
+  sub_00172BD2+11676`, instruction `movl $0x2,(%rax)`, with
+  `rax - g_xbox_mem_offset = 0xFED00008` and `g_esp + 8 = 0x01D0ED90`. The
+  earlier "store through ESP" interpretation is withdrawn; this is a genuine
+  OHCI register store.
+- Offset `+8` is `HcCommandStatus`, and the stored value `2` is `CLF`
+  (ControlListFilled). The model already claims this register at
+  `src/usb/ohci.c:255`, consumes CLF at `:1273`, and walks the list on the tick
+  rather than only on CLF (`:1228-1232`), so the write is a normal, handled
+  access.
+- gdb stops on SIGSEGV before the handler emulates the access, so those stops
+  were the ordinary trap-and-emulate path, not failures.
+- 20,504 entries into `sub_00172BD2` over 20 s is about 1,025 per second, a
+  1 kHz poll loop rather than a hang; the pipe goes quiet after about 7 pad
+  reports.
+- New lead: the title appears to be waiting for something the host never
+  supplies, plausibly a pad press. Next experiment: drive `RECOMP_AUTOPRESS`
+  and see whether the state advances.
