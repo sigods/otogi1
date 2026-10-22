@@ -222,3 +222,56 @@ Template:
   forever).
 - Consequence for v0.1: boot, BGM and UI are solid; controls and 3D stay
   blocked behind this, because both wait on the same pipe.
+
+## 2026-10-21 — USB: corrected, the gate is a null controller context
+
+- The entry above is withdrawn. The descriptor is not retired twice: the OHCI
+  model matches the QEMU reference over all 87 completions, the 20-byte pad
+  report arrives in full, CBP clears to zero, and data-toggle handling
+  matches. A second retirement would need a second descriptor; none exists.
+- At the fatal iteration the context is null, not duplicated. `sub_00172BD2`
+  is entered with `ecx=0`, `edx=0`, `esi=0`, `eax=0xFED00000`,
+  `edi=0x01121038`, `ebp=0x01D0EDBC` and `MEM32(ebp-40)=8`; on the first
+  entry the same arguments are live (`ecx=80000724`, `edx=800014C0`).
+- `sub_00172F70` reads the done-queue head at `esi+0x41C` and finds zero,
+  through a null base: `esi` is the controller pointer taken from `ecx`. The
+  length derived from it is zero and wraps into a 2^32-iteration copy over
+  the OHCI aperture.
+- Chain: `0x1700EB -> 0x170738 -> 0x173068 -> 0x17302C -> 0x172F70 ->
+  0x172BD2`. No stage tests the controller for null before adding `0x41C`;
+  the only guards are the queue-empty test, made through the bad pointer, and
+  a byte comparison that does not involve the base.
+- Remaining lead: a null controller-instance pointer in the guest ISR/drain
+  path. The host enters the guest interrupt routine with the register file
+  cleared (`ohci_call_isr`, `irq_run_line`), consistent with the all-zero
+  context seen. Next check: the register context at that entrance and at the
+  first call into the drain.
+
+## 2026-10-22 — USB: what is actually established
+
+- The descriptor model matches the QEMU reference: 87 completions, a full
+  20-byte pad report, CBP cleared to zero on a completed transfer, and the data
+  toggle now advanced per the reference.
+- The chain `sub_001700EB -> sub_00170738 -> sub_00173068 -> sub_0017302C ->
+  sub_00172F70 -> sub_00172BD2` was instrumented live: 335, 333, 20,504
+  sampled entries respectively, all carrying a live controller pointer
+  `ecx = 0x80000724`, with a sane `ebp`. No caller passes a null controller.
+- The all-zero register state seen at earlier stops is spill state observed
+  after a fault, not a null pointer. The "null controller context" explanation
+  in the preceding entry is withdrawn.
+- Preserving guest registers across guest-ISR entry changed nothing (pad
+  reports 5 to 7, same spin); that experiment has been reverted.
+- `HcRevision` (OHCI offset 0) is already owned and decoded, and the x86-64
+  decoder already handles `C7 /0`; the reports that this write was unclaimed do
+  not hold.
+- The freeze reproduces in 18 s, pad reports stop at ~7, and `cli`/`sti` pairs
+  repeat.
+- UNRESOLVED CONTRADICTION: the fatal instruction was attributed to
+  `sub_00172BD2+11676` with `rax = mem_offset + 0xFED00000`, but the same
+  instruction also disassembles as a store through `ESP`
+  (`mem_offset + (g_esp + 8)`), which would only alias `HcRevision` if `g_esp`
+  were `0xFECFFFF8`, while the recorded `g_esp` was `0x01D0ED88`. Which reading
+  is correct is open.
+- Next step to try: re-read the faulting instruction with `x/gxi` at the stop
+  and dump `g_esp` and `rax` in the same sample, so the two readings can be
+  reconciled.
