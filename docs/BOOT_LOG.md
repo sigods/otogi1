@@ -173,3 +173,52 @@ Template:
   title uploads writes constant texture coordinates (`oT0 = v4.wwww`), so no
   textured content is drawn through the program path. Fixed-function batches
   and texture binding are the next thing to look at, not the interpreter.
+
+## 2026-10-21 — USB: the boot gate is a descriptor retired twice
+
+- The title stops progressing with the main thread pinned in `sub_00172BD2`,
+  a copy helper the drain loop `sub_00172F70` calls once per retired TD. It is
+  not a wait: `RECOMP_GATE_TRACE` logged 1944 gate lines, 1943 of them our own
+  fence event being signalled and exactly one wait, so nothing blocks.
+- At the fatal iteration the helper is entered with `eax=0xFED00000` (the OHCI
+  aperture), `ecx=0`, `edx=0`, `esi=0`, `edi=0x01121038`. A zero count makes
+  the copy underflow to 2^32 iterations, each touching the aperture, which is
+  why the PC never moves and the title looks hung.
+- The count is **passed in, not computed there**. On the first entry of the
+  same helper the arguments are live: `eax=01121038 ecx=80000724
+  edx=800014C0 esi=80000724`, the last being an ED pointer with the halted bit
+  set. Call chain: `0x1700EB -> 0x170738 -> 0x173068 -> 0x17302C ->
+  0x172F70 (drain) -> 0x172BD2 (retire)`.
+- The input model itself is correct: 87 descriptors complete with 22 setups,
+  and the pad pipe (`ED 00001490`, `info=00205081`, device address 1) is armed
+  with `cbp=0x25B be=0x26E len=20` and receives a full 20-byte report
+  (`report pad 0 gave 20 bytes, the descriptor allows 20`). Reports stop at
+  7-9 only because the driver stops re-arming the pipe after the bad
+  retirement (`head=tail=0`).
+- The last events before the spin: the report TD is retired
+  (`done 00001E70 cc=0 cbp=0 be=026E info=011406C1`), two controller registers
+  are read (`+0x10`, `+0x0C`), the ISR claims the interrupt, and the title
+  returns through `cli`/`sti` at `0x00171BA5`/`0x00171BB6`, which the
+  recompiler compiles to no-ops.
+- Falsified on the way, so nobody repeats them:
+  - a kernel object wait — see the gate trace above;
+  - a done-queue self-link — the guard in `ohci_walk_eds` fired 0 times;
+  - a controller left in reset — `ctl=0x000000BE` is `HCFS=10`
+    (UsbOperational) with `PLE|CLE|BLE` set, and `cmd=0x00000006` is
+    `CLF|BLF`, both normal; `HCR` self-clears correctly;
+  - ISR reentrancy through the no-op `cli`/`sti` — suppressing the interrupt
+    (`RECOMP_OHCI_NO_IRQ`) did not remove the spin, it starved the pipe
+    (`reports: 0`) and produced an unrelated dereference of the `0x7FFFFFF8`
+    sentinel.
+- Conclusion: a TD is reaching the drain loop a second time with its fields
+  already cleared. `ohci_walk_eds` writes the done-queue link into `td+8`
+  (`NextTD`) before the driver has finished traversing the ED chain, so a
+  descriptor can be visible on both lists. The next look is the walk order and
+  that field, not the guest.
+- Diagnostics left in place, all opt-in and silent by default:
+  `RECOMP_GATE_TRACE` (waits and signals), `RECOMP_USB_TDLOG` (descriptors as
+  armed, as completed, and the report length actually copied), and
+  `RECOMP_FAULT_ABORT` (abort on 1000 unclaimed faults instead of retrying
+  forever).
+- Consequence for v0.1: boot, BGM and UI are solid; controls and 3D stay
+  blocked behind this, because both wait on the same pipe.
