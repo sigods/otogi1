@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TOOLKIT="${XBOXRECOMP_DIR:-$ROOT/../xboxrecomp}"
+TOOLKIT="${XBOXRECOMP_DIR:-$ROOT/xboxrecomp}"
 XBE="$ROOT/game/default.xbe"
 ANALYSIS="$ROOT/game/otogi1_analysis.json"
 GEN_DIR="$ROOT/src/game/recomp/gen"
@@ -34,4 +34,4 @@ echo "==> recomp  (--split 250: prevents OOM)"
 python3 -m tools.recomp "$XBE" --all --split 250 --gen-dir "$GEN_DIR" \
   --exclude-manual "$ROOT/src/game/recomp_manual.c"
 
-echo "==> done. Now: cmake --build build-xr --config Release"
+echo "==> done. Now: cmake --build build-linux"
