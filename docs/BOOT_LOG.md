@@ -346,3 +346,45 @@ Template:
 - USB enumeration itself completes normally.
 - Current investigation: why the guest never lowers IRQL, and whether that is
   what stalls the foreground loop rather than a USB or pad-handling fault.
+
+## 2026-10-22 — USB: the stall is a guest queue self-link
+
+- Phase: menus / title screen
+- Symptom: input is not accepted; log signature `irq held off by guest IRQL
+  (depth 1, status=0x02)`; the drain `sub_00172F70` runs at about 1 kHz and
+  the foreground loop stops advancing.
+- Cause: two guest threads submit the same request (`0x01121038`) into one
+  software queue. `sub_00173068` (`src/game/recomp/gen/recomp_0024.c:31861`)
+  clears `request+0x24` (`:31898`), then `sub_0017302C` (`:31813`) takes its
+  non-empty branch off the tail word at `device+0x420` and executes
+  `[tail+0x24] = request` (`:31837-31838`). When `tail == request` that write
+  stores the node's own address, linking it to itself.
+- The drain `sub_00172F70` (`:31646`) then never terminates: `head` never
+  reaches 0.
+- Evidence: `RECOMP_QTRACE=1` captured the transition `+24: 00000000 ->
+  01121038` with `head=tail=01121038`. A gdb breakpoint on `sub_00173068`
+  caught thread 3 entering while the node was already the whole queue
+  (`[SUB] n=1 thr=3 head=01121038 tail=01121038`); an earlier stack had
+  thread 1 in the same submit chain
+  (`sub_00170738 -> 00173068 -> 0017302C`).
+- Supersedes the earlier entry `## 2026-10-21 — USB: the boot gate is a
+  descriptor retired twice`, which is retained as history but is wrong; its
+  follow-up reading (a null controller context) was withdrawn in the
+  2026-10-22 entries above.
+- Falsified along the way, so they are not retried:
+  - a kernel-object wait;
+  - a done-queue self-link;
+  - a controller stuck in reset;
+  - ISR reentrancy;
+  - a DPC-vs-timer race — serialising the DPC body and the timer routine
+    left the pin unchanged;
+  - the memory model fabricating `0xFFFFFFFF` — it zero-fills decommitted
+    pages and faults on unmapped ones, and `MEM32` is a direct load, never a
+    sentinel.
+- The IRQL depth of 1 is a symptom, not the cause: the guest DPC that drains
+  the corrupted queue raises DISPATCH and never returns to lower it. The
+  count arithmetic itself is correct.
+- Likely fix: the toolkit's existing one-CPU guest lock at
+  `src/kernel/kernel_guest_cpu.c`, enabled with `RECOMP_GUEST_LOCK=1`; its
+  header describes exactly this bug class. Status: under test, not yet
+  proven — do not claim it works.
