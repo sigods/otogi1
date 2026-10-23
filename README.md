@@ -1,5 +1,9 @@
 # Otogi: Myth of Demons — technical preview v0.1
 
+[![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue)](LICENSE)
+[![Status: technical preview](https://img.shields.io/badge/status-technical_preview-orange)](ROADMAP.md)
+![Platforms: Linux and Windows](https://img.shields.io/badge/platform-Linux_%7C_Windows-lightgrey)
+
 A static recompilation of the original Xbox release of *Otogi: Myth of Demons*
 (FromSoftware / Sega, 2002) into native executables for Linux and Windows,
 built with the [xboxrecomp](https://github.com/sp00nznet/xboxrecomp) toolkit.
@@ -14,6 +18,27 @@ screen shows UI only; the 3D scene is not drawn yet.
 **AI-assisted.** Code, debugging, and documentation were produced with
 substantial AI assistance; the maintainer reviewed and verified every change
 and claim in this repository.
+
+<!--
+TODO(maintainer): drop a capture of the title screen at docs/img/title-screen.png
+and uncomment this block.
+
+<p align="center">
+  <img src="docs/img/title-screen.png" alt="The Otogi title screen, rendered by otogi1" width="720">
+</p>
+-->
+
+## Table of contents
+
+- [Status](#status)
+- [Known limitations](#known-limitations)
+- [Requirements](#requirements)
+- [Step by step](#step-by-step)
+- [Switches](#switches)
+- [Documentation](#documentation)
+- [How to help](#how-to-help)
+- [Contributing](#contributing)
+- [Licensing](#licensing)
 
 ## Status
 
@@ -35,6 +60,20 @@ but the title screen does not react.
 
 Progress stops at the title screen. Details and exact log lines:
 [`docs/BOOT_LOG.md`](docs/BOOT_LOG.md).
+
+The open blockers behind that limit are tracked in
+[`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
+
+## Known limitations
+
+- **No 3D scene.** The push-buffer executor decodes the guest command stream and
+  rasterises 2D UI quads, but no 3D content is drawn.
+- **No working input.** The pad enumerates and its reports are served, but the
+  title never polls it, so the title screen does not react.
+- **No DSP effects.** The DSP is a passthrough stub, so the mixed output is
+  produced but the title's audio effects are not emulated.
+- **The MSVC 2022 path is untested.** The MinGW-w64 cross-build is the verified
+  Windows path.
 
 ## Requirements
 
@@ -152,8 +191,9 @@ POSIX shell — Linux, or Git Bash on Windows.
    $ RECOMP_USB=1 RECOMP_AUTOPRESS=1 ./build-linux/bin/otogi1           # pad enumeration
    ```
 
-   On a headless box, run the window under `Xvfb`. The full switch list is
-   below.
+   On a headless box, run the window under `Xvfb`. These are the switches the
+   README relies on; [`AGENTS.md`](AGENTS.md) § 7 lists the rest, including the
+   diagnostic ones added during bring-up.
 
 ### Windows
 
@@ -194,7 +234,9 @@ Run from the project root, like on Linux:
 
 ## Switches
 
-Every switch is an environment variable, read once at startup.
+Every switch is an environment variable, read once at startup. The table below
+lists the switches these instructions use; [`AGENTS.md`](AGENTS.md) § 7 has the
+complete set, including the diagnostics added during bring-up.
 
 | Variable | Effect |
 |---|---|
@@ -204,6 +246,28 @@ Every switch is an environment variable, read once at startup.
 | `RECOMP_AC97_READY=1` | MCPX APU and host audio output (SDL2 on Linux, XAudio2 on Windows) |
 | `RECOMP_AUDIO_WAV=path` | Capture the mixed output to a WAV file |
 | `RECOMP_SYNC_IO=1` | Complete `NtReadFile` inline (pre-audio-fix behaviour) |
+
+## Documentation
+
+- [`docs/INDEX.md`](docs/INDEX.md) — start here: which document to read, and when.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — which layer owns a behaviour.
+- [`docs/PIPELINE.md`](docs/PIPELINE.md) — the toolchain, step by step.
+- [`docs/RUNNING.md`](docs/RUNNING.md) — building, running and recording the executable, in long form.
+- [`docs/TITLE_OTOGI.md`](docs/TITLE_OTOGI.md) — title facts and open unknowns.
+- [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) — what is blocking progress now.
+- [`docs/BOOT_LOG.md`](docs/BOOT_LOG.md) — the append-only findings ledger.
+- [`ROADMAP.md`](ROADMAP.md) — milestone status.
+
+## How to help
+
+- Reproduce the USB queue self-link on another host and report whether the timing changes ([`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md)).
+- Build with MSVC 2022 and report the result — that path is supported but has never been run.
+- Capture the title screen on Windows for `docs/img/`.
+- Try the one-CPU guest lock (`RECOMP_GUEST_LOCK=1`) and record what it changes in [`docs/BOOT_LOG.md`](docs/BOOT_LOG.md).
+- Correct or extend a page in [`docs/`](docs/INDEX.md).
+- Pick a milestone in [`ROADMAP.md`](ROADMAP.md) and open an issue naming it.
+
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first; it has the two rules that matter.
 
 ## Contributing
 

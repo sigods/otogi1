@@ -1,8 +1,8 @@
 # AGENTS.md — Otogi: Myth of Demons static recompilation
 
 You are a coding agent working on a static recompilation of the original Xbox
-game *Otogi: Myth of Demons* (FromSoftware / Sega, 2002) into a native Windows
-x86-64 executable, using the `xboxrecomp` toolkit.
+game *Otogi: Myth of Demons* (FromSoftware / Sega, 2002) into native Linux and
+Windows x86-64 executables, using the `xboxrecomp` toolkit.
 
 Read this file first, every session. Then `docs/INDEX.md`.
 
@@ -33,14 +33,22 @@ Read this file first, every session. Then `docs/INDEX.md`.
 
 ## 3. Environment (verify before first build)
 
-- Windows 10/11 preferred — the D3D11 backend is the complete path; Linux/macOS
-  only have the less-complete OpenGL 3.3 backend.
+- Linux x86-64 is the primary and verified path; SDL2 and libepoxy provide the
+  video, audio and window backend.
+- The MinGW-w64 cross-build is the verified Windows path and reaches the same
+  milestone under Wine. MSVC 2022 is supported but untested: Windows uses
+  Direct3D 11, DXGI and XAudio2 from the Windows SDK, so no SDL2 is required.
 - Python 3.10+ with `capstone`.
-- CMake 3.20+, Visual Studio 2022 (C/C++ desktop workload).
+- CMake 3.20+, and a C11 compiler: GCC or Clang on Linux, MinGW-w64 for the
+  verified Windows build, Visual Studio 2022 with the C/C++ desktop workload for
+  the untested one.
 - The toolkit is a submodule at `xboxrecomp/`: clone with `--recursive`, or run
   `git submodule update --init` in an existing checkout. Pass
   `-DXBOXRECOMP_DIR=` only to test against another tree.
-- `extract-xiso` or the toolkit's `tools.xiso` to unpack the disc.
+- Unpack the disc with the toolkit's own reader,
+  `python3 -m tools.xiso unpack <iso> -o ../game`. Otogi's USA image carries a
+  video partition in front of the filesystem, so readers that assume the
+  filesystem starts at offset 0 fail; this one probes the known partition bases.
 - xemu + Ghidra/IDA (optional but strongly recommended — see §6).
 
 ## 4. The pipeline, in one breath
@@ -93,20 +101,32 @@ in the other 20% — stubs, indirect calls, and hardware-facing code.
 
 | Variable | Purpose |
 |---|---|
-| `RECOMP_ABI_CHECK` | Assert lifted signatures against recovered ABI |
+| `RECOMP_FB_WINDOW` | Open the SDL framebuffer window and present frames — Linux only, off by default |
 | `RECOMP_PB_EXEC` | Software NV2A push-buffer executor on/off |
 | `RECOMP_USB` | USB OHCI host + emulated pads on/off |
+| `RECOMP_AUTOPRESS` | Send START+A through the emulated pad (requires `RECOMP_USB`) |
 | `RECOMP_PAD_LIVE` | Drive the title headless from a live pad |
+| `RECOMP_AC97_READY` | MCPX APU and host audio output (SDL2 on Linux, XAudio2 on Windows) |
+| `RECOMP_AUDIO_WAV` | Capture the mixed output to a WAV file (takes a path) |
+| `RECOMP_SYNC_IO` | Complete `NtReadFile` inline (pre-audio-fix behaviour) |
+| `RECOMP_ABI_CHECK` | Assert lifted signatures against recovered ABI |
 | `RECOMP_FRAME_TRACE` | Frame tracing (takes a flag file, not `1`) |
+| `RECOMP_GATE_TRACE` | Log kernel waits and signals |
+| `RECOMP_USB_TDLOG` | Log USB descriptors as armed and completed, and the report length copied |
+| `RECOMP_QTRACE` | Trace the USB software queue head/tail transitions |
+| `RECOMP_FAULT_ABORT` | Abort on 1000 unclaimed faults instead of retrying forever |
+| `RECOMP_GUEST_LOCK` | Enable the toolkit's one-CPU guest lock |
 
 Confirm current names against the toolkit before relying on them.
+`docs/BOOT_LOG.md` also names temporary diagnostics used during bring-up
+(`RECOMP_NOMOVIE`, `RECOMP_WAIT_LOG`, `RECOMP_DPC_LOG`, `RECOMP_OHCI_NO_IRQ`);
+those were added for one investigation and may not survive in the current tree.
 
 ## 8. Commit conventions
 
-- One finding per commit where possible; message states the symptom and the
-  fix, e.g. `boot: stub XAPI quick-reboot; reach CRT startup`.
-- Never commit generated code, disc data, or build output.
-- Keep `docs/BOOT_LOG.md` append-only. Corrections go in new entries.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) § Commit messages. Two of those rules are
+absolute: never commit generated code, disc data or build output, and keep
+`docs/BOOT_LOG.md` append-only.
 
 ## 9. When you are stuck
 
@@ -115,4 +135,3 @@ Confirm current names against the toolkit before relying on them.
 - Check whether a general fix belongs upstream in `xboxrecomp`.
 - Record the blocker in `docs/BOOT_LOG.md` with the exact stderr and RVA, then
   stop and report — do not "fix" it by hand-writing game behaviour.
-
