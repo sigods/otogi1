@@ -1,0 +1,57 @@
+name: Bug report
+description: Report a crash, a stall, or behaviour that contradicts the README
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do **not** attach game data, disc images, XBEs or extracted assets. A
+        log excerpt is enough. Read `CONTRIBUTING.md` § Reporting a bug, and
+        check `docs/KNOWN_ISSUES.md` before filing.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Linux x86-64
+        - Windows x86-64 (MinGW cross-build)
+        - Windows x86-64 (MSVC 2022)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: switches
+    attributes:
+      label: RECOMP_* switches used
+      description: "e.g. RECOMP_PB_EXEC=1 RECOMP_USB=1"
+      placeholder: RECOMP_PB_EXEC=1
+  - type: textarea
+    id: observed
+    attributes:
+      label: What happened
+      description: The exact stderr lines, not a paraphrase.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: input
+    id: rva
+    attributes:
+      label: RVA or target address
+      description: If the log or a debugger stop has one.
+      placeholder: "0x00180100"
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmations
+      options:
+        - label: I have searched docs/KNOWN_ISSUES.md and docs/BOOT_LOG.md.
+          required: true
+        - label: This report contains no game data, disc image or generated source.
+          required: true

@@ -1,0 +1,30 @@
+name: Docs / repo correction
+description: A document is wrong, stale, or missing something
+title: "docs: "
+labels: ["documentation"]
+body:
+  - type: input
+    id: area
+    attributes:
+      label: Which document
+      placeholder: "README.md § Switches"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong
+      description: Quote the sentence and say what contradicts it.
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: Proposed fix
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmation
+      options:
+        - label: This correction contains no game data or disc image.
+          required: true
