@@ -19,14 +19,9 @@ screen shows UI only; the 3D scene is not drawn yet.
 substantial AI assistance; the maintainer reviewed and verified every change
 and claim in this repository.
 
-<!--
-TODO(maintainer): drop a capture of the title screen at docs/img/title-screen.png
-and uncomment this block.
-
 <p align="center">
   <img src="docs/img/title-screen.png" alt="The Otogi title screen, rendered by otogi1" width="720">
 </p>
--->
 
 ## Table of contents
 

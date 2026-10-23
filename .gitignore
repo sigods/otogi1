@@ -37,3 +37,6 @@ time.txt
 pid*.txt
 *.raw
 calls.txt
+
+# Docs assets — committed (the blanket *.png above is for run artifacts)
+!docs/img/*.png
