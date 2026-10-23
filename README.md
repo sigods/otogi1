@@ -17,16 +17,24 @@ and claim in this repository.
 
 ## Status
 
+Works: boot to the title screen, logos, looping attract video, BGM/audio, 2D UI
+rendering, native Linux builds, Windows cross-builds, and the smoke test.
+Not yet: 3D scene rendering, and input — injected pad presses reach the guest
+but the title screen does not react.
+
 | Component | State | Notes |
 |---|---|---|
-| Boot | Works | Loads the XBE, reaches `[AV] SetDisplayMode`, runs the main loop. No crash. |
+| Builds | Works | Native Linux binaries; MinGW cross-build for Windows verified, MSVC path documented. `tools/smoke.sh build-linux` passes. |
+| Boot | Works | Loads the XBE, reaches `[AV] SetDisplayMode`, runs the main loop. Renders the logos and reaches the title screen. No crash. |
 | Kernel | Works | Threads, KEVENTs, the NV2A fence event, and asynchronous `NtReadFile` (`RECOMP_SYNC_IO=1` restores inline completion). |
 | File I/O | Works | All XBE sections, assets, and the title's packed `.dev`/`.000` archives. |
-| Audio | Works (BGM) | `RECOMP_AC97_READY=1`: streamed menu BGM with measured non-zero PCM. The DSP is a passthrough stub, so effects are not emulated. |
-| Input | Partial | `RECOMP_USB=1`: the pad is enumerated and reports are served, but the title does not consume them yet. |
-| Rendering | Partial | `RECOMP_PB_EXEC=1`: command stream decoded, triangles rasterised. The scene's source texture is never filled, so only UI is visible. |
+| Audio | Works (BGM) | `RECOMP_AC97_READY=1`: streamed BGM with measured non-zero PCM. The DSP is a passthrough stub, so effects are not emulated. |
+| Video | Works | The title's own XMV decoder plays the looping attract video. The toolkit's host video player is a POSIX stub and is not required. |
+| Input | Does not work | `RECOMP_USB=1`: the pad is enumerated and reports are served, and injected presses reach the guest, but the title screen does not react. |
+| Rendering | Partial (2D UI) | `RECOMP_PB_EXEC=1`: pushbuffer decoded and 2D UI quads rasterised. No 3D scene is drawn. Flat coloured panels are correct: the title's vertex program writes constant texture coordinates, so each quad samples one texel. |
 
-Details and exact log lines: [`docs/BOOT_LOG.md`](docs/BOOT_LOG.md).
+Progress stops at the title screen. Details and exact log lines:
+[`docs/BOOT_LOG.md`](docs/BOOT_LOG.md).
 
 ## Requirements
 

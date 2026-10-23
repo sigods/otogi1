@@ -296,3 +296,53 @@ Template:
 - New lead: the title appears to be waiting for something the host never
   supplies, plausibly a pad press. Next experiment: drive `RECOMP_AUTOPRESS`
   and see whether the state advances.
+
+## 2026-10-22 — rendering: what fixed the black screen
+
+- Phase: menus / title screen
+- Symptom: the pushbuffer advanced and the clears wrote the surface, but the
+  screen stayed black; every triangle was rejected before rasterisation.
+- Cause: every vertex of the title's 2D quads carried `w = 0`. The title's own
+  vertex program takes the reciprocal of that component to build the
+  homogeneous position, so a zero produced an infinite value and the
+  rasteriser's non-finite guard rejected every triangle.
+- Fix: the toolkit's `fetch_attr` path now supplies `1.0` for vertex attribute
+  0 when a float4 position arrives with a zero fourth component, and resolves
+  attributes through `dma_resolve` so tiled and physical addresses are handled.
+- Other attributes are passed through untouched.
+- Result: a 12-instruction program runs 195 batches / 780 vertices per capture
+  with no triangles dropped.
+- Later census: 169 program batches / 676 vertices, 0 fixed-function batches,
+  0 textured-without-uv, and one texture bound (`0x81470000`, 512x256, format
+  `0x06`).
+- The title's only vertex program writes constant texture coordinates, so each
+  quad samples a single texel. Flat coloured panels are the correct output, not
+  a rendering bug.
+
+## 2026-10-22 — current state
+
+- Works: the game boots the retail XBE, renders the logos, and reaches the
+  title screen. The title screen loops the attract video and plays BGM.
+- Works: 2D UI rendering. The pushbuffer is decoded and the UI quads rasterise.
+- Works: audio through `RECOMP_AC97_READY=1`, with measured non-zero PCM.
+- Works: native Linux builds and the MinGW cross-build for Windows; the MSVC
+  path is documented. `tools/smoke.sh build-linux` passes.
+- Does not work: no 3D scene is rendered.
+- Does not work: input is not accepted. Injected pad presses reach the guest —
+  USB descriptor completions rise from about 107 to about 115, and pad reports
+  from about 7 to about 9 — but the title screen does not react.
+- The game does not progress past the title screen.
+- Video playback is the title's own XMV decoder. The toolkit's host video
+  player is a POSIX stub and is not required for the attract video to play.
+
+## 2026-10-22 — open lead: guest IRQL depth stays at 1
+
+- Status: open investigation, not solved.
+- Log signature: `irq held off by guest IRQL (depth 1, status=0x02)`
+- Log signature: `guest IRQL never dropped (depth 1); delivering anyway`
+- The guest's IRQL depth stays at 1 and is never lowered.
+- The done-queue drain keeps running at about 1 kHz.
+- The foreground loop stops advancing.
+- USB enumeration itself completes normally.
+- Current investigation: why the guest never lowers IRQL, and whether that is
+  what stalls the foreground loop rather than a USB or pad-handling fault.
