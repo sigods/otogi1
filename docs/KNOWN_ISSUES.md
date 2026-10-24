@@ -24,8 +24,19 @@ is in [`../ROADMAP.md`](../ROADMAP.md); the raw history is in
   memory model fabricating `0xFFFFFFFF`.
 - **Next lead:** the toolkit's one-CPU guest lock at
   `src/kernel/kernel_guest_cpu.c`, enabled with `RECOMP_GUEST_LOCK=1`. Under
-  test, not proven — do not claim it works.
+  test, not proven. In one 2026-10-24 run with a physical pad the menu was
+  reached without the lock (see `BOOT_LOG.md`), so the lock is not shown to be
+  required. Do not claim it works.
 - **Where the fix belongs:** the `xboxrecomp` toolkit.
+
+## Black screen after New Game
+
+- **Symptom:** with a physical gamepad, the pad reached the New Game menu.
+  Selecting New Game then shows a black screen.
+- **Evidence:** `BOOT_LOG.md`, 2026-10-24. One run,
+  `RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1`, `RECOMP_GUEST_LOCK` not set.
+- **Status:** open, not reproduced. stderr not yet captured; the cause is unknown.
+- **Where the fix belongs:** unknown until the stderr tail is captured.
 
 ## No 3D scene is drawn
 

@@ -3,23 +3,45 @@
   "game": "Otogi: Myth of Demons",
   "system": "Xbox",
   "type": "recomp",
-  "original": { "region": "USA" },
+  "original": {
+    "region": "USA"
+  },
   "project": "otogi1",
   "status": "in-progress",
-  "targets": ["Linux", "Windows"],
+  "targets": [
+    "Linux",
+    "Windows"
+  ],
   "toolchain": "Xboxrecomp",
   "approach": "Static recompilation of the guest x86 to C, compiled natively for x86-64, with a software NV2A push-buffer executor in place of the GPU",
-  "maintainers": [{ "name": "sigods", "link": "https://github.com/sigods" }],
+  "maintainers": [
+    {
+      "name": "sigods",
+      "link": "https://github.com/sigods"
+    }
+  ],
   "links": [
-    { "label": "Roadmap", "url": "https://github.com/sigods/otogi1/blob/main/ROADMAP.md" },
-    { "label": "Known issues", "url": "https://github.com/sigods/otogi1/blob/main/docs/KNOWN_ISSUES.md" },
-    { "label": "Boot log", "url": "https://github.com/sigods/otogi1/blob/main/docs/BOOT_LOG.md" },
-    { "label": "xboxrecomp (pinned fork)", "url": "https://github.com/sigods/xboxrecomp" }
+    {
+      "label": "Roadmap",
+      "url": "https://github.com/sigods/otogi1/blob/main/ROADMAP.md"
+    },
+    {
+      "label": "Known issues",
+      "url": "https://github.com/sigods/otogi1/blob/main/docs/KNOWN_ISSUES.md"
+    },
+    {
+      "label": "Boot log",
+      "url": "https://github.com/sigods/otogi1/blob/main/docs/BOOT_LOG.md"
+    },
+    {
+      "label": "xboxrecomp (pinned fork)",
+      "url": "https://github.com/sigods/xboxrecomp"
+    }
   ],
   "help": [
-    "Reproducing the USB queue stall on another host",
+    "Black screen after New Game with a physical pad",
     "Building with MSVC 2022",
     "3D rendering: fixed-function batches and texture binding"
   ],
-  "notes": "Boots the retail USA XBE, runs the title's own main loop, plays the attract video and streams the menu BGM. Static recompilation with a pinned xboxrecomp submodule; no emulator and no CPU interpreter. No 3D scene: the software push-buffer executor rasterises 2D UI only, because the title's single vertex program writes constant texture coordinates and no fixed-function batches are submitted. Input is not accepted: the pad enumerates and its reports are served, but the title never polls it. The DSP is a passthrough stub, so audio effects are absent. The MSVC 2022 path is documented but has never been run. Needs your own legally obtained USA Xbox disc; no game data is included."
+  "notes": "Boots the retail USA XBE, runs the title's own main loop, plays the attract video and streams the menu BGM. Static recompilation with a pinned xboxrecomp submodule; no emulator and no CPU interpreter. No 3D scene: the software push-buffer executor rasterises 2D UI only. Input: in one run a physical pad reached the New Game menu; after the menu pan-out delay the screen goes black, with or without RECOMP_GUEST_LOCK=1. The DSP is a passthrough stub, so audio effects are absent. The MSVC 2022 path is documented but has never been run. Needs your own legally obtained USA Xbox disc; no game data is included."
 }

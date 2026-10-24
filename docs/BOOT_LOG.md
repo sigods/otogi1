@@ -388,3 +388,28 @@ Template:
   `src/kernel/kernel_guest_cpu.c`, enabled with `RECOMP_GUEST_LOCK=1`; its
   header describes exactly this bug class. Status: under test, not yet
   proven — do not claim it works.
+
+## 2026-10-24 — physical pad reaches New Game; black screen after
+
+- Build: commit `2c823a0`, `build-linux`.
+- Command: `RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1 ./build-linux/bin/otogi1`
+- `RECOMP_GUEST_LOCK` was **not** set.
+- Input: a physical gamepad was used. The pad got past the title and reached the New Game menu.
+- Symptom: selecting New Game shows a black screen.
+- Status: one run. stderr not yet captured, so the cause is unknown.
+- This does not match the 2026-10-22 "current state" entry, which says the title screen does not react. Both are kept; this one is the newer observation.
+- The guest lock was not needed for this run. One run does not show it is never needed, so the 2026-10-22 lead stays "under test".
+
+## 2026-10-24 — guest lock retest: no change; black screen after New Game
+
+- Build: commit `2c823a0`, `build-linux`.
+- Command: `RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1 RECOMP_GUEST_LOCK=1 ./build-linux/bin/otogi1`, physical gamepad.
+- Result: same as the run without the lock. Pad reaches New Game; the screen goes black after the menu pan-out delay.
+- Conclusion: `RECOMP_GUEST_LOCK=1` does not fix this. The 2026-10-22 lock lead is not the cause of the post-menu black screen.
+- Log tail (stderr, same run shape):
+  - `[GPU] 0.00 fps (779 flips)` repeats unchanged; the flip count stops at 779.
+  - `draws 8695`, `0 pixels written` and `[PB] 0 pushbuffer calls followed` do not change between blocks.
+  - `[PADS] … btn=0000 A=0` on every line: the pad is served, but no button bits reach the guest in the tail.
+  - `[KERNEL] ordinal 175 (slot 98) esp=0x0154FF88` dominates and climbs about 1,400 per block, consistent with a polling loop. Once, ordinal 119 appears at `esp=0x0158FFCC` and then the loop resumes.
+  - The run does not exit and does not crash.
+- Not yet known: the name of ordinal 175, and whether `[PB] 0 pushbuffer calls followed` is per-run or per-frame.

@@ -6,10 +6,10 @@
 |---|---|---|---|
 | M0 — Pipeline runs | `regen.sh` completes; `main.c` constants filled | ☑ | `README.md` § Step by step, step 4 |
 | M1 — CRT startup | Reaches `main()`/`WinMain()` without crashing | ☑ | `docs/BOOT_LOG.md`, 2026-10-20 — reaches `[AV] SetDisplayMode`, exits 124, no crash |
-| M2 — Hardware init | D3D device + DirectSound + input created | ◐ | `README.md` § Status — D3D and audio live; the pad enumerates but is never polled |
+| M2 — Hardware init | D3D device + DirectSound + input created | ☑  | `README.md` § Status |
 | M3 — Asset load | Reads data from `game/` without SKIP-READ | ☑ | `README.md` § Status, File I/O — all XBE sections, assets and packed archives read |
 | M4 — Menus | Title screen renders | ☑ | `README.md` § Status — logos, attract video and 2D UI render |
-| M5 — Gameplay | Playable level at stable framerate | ☐ | blocked on M2 (input) and on 3D rendering |
+| M5 — Gameplay | Playable level at stable framerate | ☐ | blocked on 3D rendering |
 | M6 — Polish | Audio, save/load, rendering fixes, widescreen | ☐ | — |
 
 ## Non-goals
