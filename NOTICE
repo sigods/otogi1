@@ -9,11 +9,12 @@ License
 This project's own source is licensed under the GNU General Public License,
 version 3 only (GPL-3.0-only). The full text is in `LICENSE`.
 
-`xboxrecomp/` is a pinned submodule of the MIT-licensed
+`xboxrecomp/` is a pinned submodule of the
 [xboxrecomp](https://github.com/sp00nznet/xboxrecomp) toolkit, with local
-changes. It remains under its original MIT license (see
-`xboxrecomp/LICENSE`); including this fork does not relicense it.
-The exact upstream base is recorded in `xboxrecomp/UPSTREAM.md`.
+changes; the exact upstream base is recorded in `xboxrecomp/UPSTREAM.md`.
+Most of the toolkit is MIT, but not all of it — see "Components derived from
+xemu" below. `xboxrecomp/LICENSE`, `xboxrecomp/NOTICE` and
+`xboxrecomp/LICENSES/` govern that code.
 
 Game content
 ------------
@@ -39,7 +40,29 @@ Third-party libraries
 - CMake, Ninja, and the C toolchain are build-time dependencies and are not
   distributed here.
 
+Components derived from xemu
+----------------------------
+Parts of the toolkit are derived from
+[xemu](https://github.com/xemu-project/xemu) and are **LGPL-2.1-or-later**, not
+MIT. They are the work of that project, not of this one:
+
+| Path in `xboxrecomp/` | Licence | Copyright |
+|---|---|---|
+| MCPX APU sources in `src/apu/` | LGPL-2.1-or-later | espes; Jannik Vogel; Matt Borgerson |
+| `src/nv2a/nv2a_regs.h` | LGPL-2.1-or-later | espes; Jannik Vogel |
+
+Not every file under `src/apu/` and `src/nv2a/` is xemu-derived. The per-file
+list, with the copyright each file actually carries, is in
+`xboxrecomp/NOTICE`. The verbatim licence text is
+`xboxrecomp/LICENSES/LGPL-2.1.txt`, and it is shipped for that reason.
+
+If you redistribute a binary built from this repository, that notice and licence
+text must travel with it, and recipients must be able to relink against a
+modified copy of those libraries. The toolkit is present here as full source,
+which is what satisfies that requirement.
+
 No warranty
 -----------
 This is an unfinished technical preview provided as-is, without warranty of any
-kind. It does not render a picture and does not accept controller input.
+kind. It reaches the title screen, renders its logos, the attract video and 2D
+UI, and draws no 3D scene. It does not accept controller input.
