@@ -13,6 +13,7 @@ Start here, then follow the order.
 | `RUNNING.md` | Building, running, and recording the executable. |
 | `KNOWN_ISSUES.md` | Your symptom may already be listed as an open blocker. |
 | `FAQ.md` | You are new and want the short answers first. |
+| `../CHANGELOG.md` | What changed, and when — check before assuming a behaviour is a regression. |
 
 By symptom:
 - "Crash in ICALL dispatch" → `BOOT_LOG.md`, then AGENTS.md §6.

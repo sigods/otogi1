@@ -20,10 +20,11 @@ How to work with an agent on this repository is in
 This project stands on other people's work:
 
 - **[xboxrecomp](https://github.com/sp00nznet/xboxrecomp)** and its authors — the
-  static recompilation toolkit, a submodule at `xboxrecomp/` under the
-  MIT license. Local changes are listed in
-  `xboxrecomp/UPSTREAM.md`.
-- **xemu** and its contributors — the MCPX APU and NV2A derived sources
-  attributed in [`NOTICE`](NOTICE).
+  static recompilation toolkit, a submodule at `xboxrecomp/`. Most of it is
+  MIT, but the parts derived from xemu are LGPL-2.1-or-later. Local changes are
+  listed in `xboxrecomp/UPSTREAM.md`.
+- **xemu** and its contributors — the MCPX APU sources and the NV2A register
+  definitions, **LGPL-2.1-or-later**. [`NOTICE`](NOTICE) lists the affected
+  paths, the copyright holders, and where the licence text lives.
 - **FromSoftware, Inc. and Sega Corporation** — *Otogi: Myth of Demons* itself,
   which this project recompiles. No game code or assets are distributed here.

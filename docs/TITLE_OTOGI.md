@@ -10,6 +10,7 @@
 | Released | JP 2002-12-12; NA 2003-08-26; EU 2003-09-05 | Wikipedia |
 | Genre | Action RPG / hack-and-slash | Wikipedia |
 | Xemu status | Playable, minor issues | xemu title DB |
+| Attract video | Plays — the title's own XMV decoder | `README.md` § Status |
 
 ## Unknown — determine empirically, then update this file
 
@@ -21,7 +22,9 @@
 - **.text size and function count.** From Step 3 stats. Typical Xbox title:
   10k–25k functions.
 - **Kernel imports used** (out of 147). From Step 2.
-- **XMV / video usage.** Check for `Video/` on the disc.
+- ~~XMV / video usage.~~ **Answered:** the title's own XMV decoder plays the
+  looping attract video, and the disc extracts with a `movie/` directory. The
+  toolkit's host video player is a POSIX stub and is not required.
 - **Xbox Live dependency.** Otogi 1 is single-player; confirm nothing in the
   boot path requires Live.
 - **Backward-compatibility status.** Otogi 2 is BC on Xbox One/Series; Otogi 1's

@@ -74,7 +74,8 @@ The open blockers behind that limit are tracked in
 
 - Linux x86-64, or Windows x86-64 (the MinGW cross-build is the verified
   Windows path; MSVC 2022 is supported but untested).
-- CMake 3.20+, a C11 compiler, Ninja (optional).
+- CMake 3.20+, a C11 compiler, and Ninja. The build commands below pass
+  `-G Ninja`; drop that flag to use CMake's default generator.
 - On Linux only: SDL2 and libepoxy for the video, audio and window path.
   Windows uses Direct3D 11 and XAudio2 from the Windows SDK instead.
 - Python 3.10+ with `capstone` — `regen.sh` drives the toolkit's
@@ -100,7 +101,7 @@ POSIX shell — Linux, or Git Bash on Windows.
    | capstone | 5.x | `python3 -m pip install --user capstone` |
    | CMake | 3.20 or newer | |
    | C compiler | C11 | GCC or Clang on Linux; MinGW-w64 for the verified Windows build |
-   | Ninja | optional | used by the commands below |
+   | Ninja | recommended | the commands below pass `-G Ninja`; drop it to use the default generator |
    | SDL2, libepoxy | Linux only | video, audio and window path |
 
    ```
@@ -141,11 +142,13 @@ POSIX shell — Linux, or Git Bash on Windows.
    ==> func_id
    ==> abi_analysis  (never skip: silent wrong signatures otherwise)
    ==> recomp  (--split 250: prevents OOM)
-   ==> done. Now: cmake --build build-xr --config Release
+   ==> done. Now: cmake --build build-linux
    ```
 
    This writes `src/game/recomp/gen/`, which is gitignored. It takes a few
-   minutes and is only needed once per disc.
+   minutes and is only needed once per disc. It generates C and stops — the
+   `cmake --build` in its closing line is a suggestion, and step 5 does the
+   configure that makes it work.
 
 5. **Build.**
 
@@ -245,6 +248,7 @@ complete set, including the diagnostics added during bring-up.
 ## Documentation
 
 - [`docs/INDEX.md`](docs/INDEX.md) — start here: which document to read, and when.
+- [`docs/FAQ.md`](docs/FAQ.md) — the short answers, if you want them first.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — which layer owns a behaviour.
 - [`docs/PIPELINE.md`](docs/PIPELINE.md) — the toolchain, step by step.
 - [`docs/RUNNING.md`](docs/RUNNING.md) — building, running and recording the executable, in long form.
@@ -252,12 +256,13 @@ complete set, including the diagnostics added during bring-up.
 - [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) — what is blocking progress now.
 - [`docs/BOOT_LOG.md`](docs/BOOT_LOG.md) — the append-only findings ledger.
 - [`ROADMAP.md`](ROADMAP.md) — milestone status.
+- [`CHANGELOG.md`](CHANGELOG.md) — what changed, and when.
 
 ## How to help
 
 - Reproduce the USB queue self-link on another host and report whether the timing changes ([`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md)).
 - Build with MSVC 2022 and report the result — that path is supported but has never been run.
-- Capture the title screen on Windows for `docs/img/`.
+- Run `./tools/smoke.sh` on another distribution and report any assertion that fails.
 - Try the one-CPU guest lock (`RECOMP_GUEST_LOCK=1`) and record what it changes in [`docs/BOOT_LOG.md`](docs/BOOT_LOG.md).
 - Correct or extend a page in [`docs/`](docs/INDEX.md).
 - Pick a milestone in [`ROADMAP.md`](ROADMAP.md) and open an issue naming it.
@@ -281,8 +286,10 @@ This project's own source is **GPL-3.0-only** — see [`LICENSE`](LICENSE). No g
 data, disc image, XBE or generated recompiled source is distributed here; you
 supply your own copy (see Requirements).
 
-`xboxrecomp/` is a submodule pinned to this project's fork of the MIT-licensed
-toolkit, carrying local changes; it remains MIT (see its `LICENSE` and
-`UPSTREAM.md`). Third-party
-attribution, including the xemu-derived MCPX APU and NV2A sources, is in
-[`NOTICE`](NOTICE).
+`xboxrecomp/` is a submodule pinned to this project's fork of the toolkit,
+carrying local changes; `xboxrecomp/UPSTREAM.md` records the upstream base.
+
+Most of the toolkit is MIT, but not all of it. The MCPX APU sources and the
+NV2A register definitions are derived from xemu and are
+**LGPL-2.1-or-later**; the affected paths, the copyright holders and the
+licence text are listed in [`NOTICE`](NOTICE) and shipped under `xboxrecomp/`.

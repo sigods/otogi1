@@ -56,7 +56,7 @@ Read this file first, every session. Then `docs/INDEX.md`.
 `extract → xbe_parser → disasm → func_id → abi_analysis → [ghidra_naming] →
 recomp → cmake build → run → read stderr → fix → repeat`
 
-`regen.sh` drives steps 2–6. Full command detail: `docs/PIPELINE.md`.
+`regen.sh` drives steps 2–5. Full command detail: `docs/PIPELINE.md`.
 The toolkit's own long-form guide is authoritative when something diverges.
 
 ## 5. Non-negotiable pipeline gates
@@ -71,13 +71,17 @@ These are the ways the pipeline fails *silently*. Do not skip them.
   translation units; that has OOM-killed a 15 GB machine. If the build dies on
   a signal rather than an error, check `dmesg` for the OOM killer before
   blaming the generated code.
-- **`--gen-dir` must point into this repo** (`src/game/recomp/gen`). Without it
-  the C lands inside the toolkit clone where nothing compiles it.
+- **`--gen-dir` must point into this repo.** The pipeline commands run with the
+  toolkit as the working directory, so the flag is
+  `--gen-dir ../src/game/recomp/gen`. Without it the C lands inside the toolkit
+  clone where nothing compiles it.
 - **Ghidra naming runs *before* Step 5, and is lost if you re-run Step 3.**
   `tools.disasm` rewrites `functions.json` from scratch. Re-apply with
   `merge_names.py --apply`.
-- **The first run will crash.** That is the expected starting state, not a
-  regression.
+- **The first run must not crash.** As of the v0.1 preview it reaches
+  `[AV] SetDisplayMode`, runs the title's main loop, and keeps running.
+  `tools/smoke.sh` asserts a clean exit and non-silent audio. A crash is a
+  regression, not a starting state.
 
 ## 6. Debugging loop (the actual work)
 
