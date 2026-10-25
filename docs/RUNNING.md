@@ -49,16 +49,11 @@ $ ./build-linux/bin/otogi1 # Linux
 $ ./build-win/bin/otogi1.exe # MinGW cross-build
 
 
-It runs the title's main loop indefinitely; `Ctrl+C` ends it. Nothing is
-interactive by default. With `RECOMP_USB=1` and a physical pad, one run got past the title to the New Game menu (see below).
+It runs the title's main loop indefinitely; `Ctrl+C` ends it.
 
-## Physical gamepad (one run)
-
-Command used: `RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1 ./build-linux/bin/otogi1`,
-with a physical gamepad. The pad reached the New Game menu. After the menu's
-pan-out delay the screen goes black. `RECOMP_GUEST_LOCK=1` made no difference.
-This is one run; treat it as a report, not a fix. Capture stderr with
-`2>stderr.txt` and attach its tail to any bug report.
+**Reference run:** `RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1
+RECOMP_AC97_READY=1 ./build-linux/bin/otogi1` with a physical gamepad reached New Game
+and then the save-creation screen. Saving is not implemented.
 
 ## Switches
 

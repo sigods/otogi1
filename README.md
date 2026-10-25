@@ -37,12 +37,14 @@ and claim in this repository.
 
 ## Status
 
-Works: boot to the title screen and the New Game menu, logos, looping attract
-video, BGM/audio, 2D UI rendering, native Linux builds, Windows cross-builds,
-and the smoke test.
+Works: boot to the title screen, the New Game menu, and the save-creation
+screen (one run, with `RECOMP_AC97_READY=1`); logos, looping attract video,
+BGM/audio, 2D UI rendering, native Linux builds, Windows cross-builds, and the
+smoke test.
 Partial: input. In one run with a physical gamepad the pad reached the New Game
-menu; after the menu pan-out delay the screen goes black.
-Not yet: 3D scene rendering, and the black screen after New Game.
+menu and then the save-creation screen.
+Not yet: 3D scene rendering, and saving. Save creation is shown on screen but
+the save itself is not implemented.
 
 | Component | State | Notes |
 |---|---|---|
@@ -52,13 +54,15 @@ Not yet: 3D scene rendering, and the black screen after New Game.
 | File I/O | Works | All XBE sections, assets, and the title's packed `.dev`/`.000` archives. |
 | Audio | Works (BGM) | `RECOMP_AC97_READY=1`: streamed BGM with measured non-zero PCM. The DSP is a passthrough stub, so effects are not emulated. |
 | Video | Works | The title's own XMV decoder plays the looping attract video. The toolkit's host video player is a POSIX stub and is not required. |
-| Input | Partial | One run with a physical pad reached the New Game menu (`RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1`). The black screen follows the menu pan-out delay, with and without `RECOMP_GUEST_LOCK=1`. Earlier findings: `docs/BOOT_LOG.md`, 2026-10-22. |
+| Input | Partial | One run with a physical pad reached New Game (`RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1 RECOMP_AC97_READY=1`). The title does not react to input in general; earlier findings: `docs/BOOT_LOG.md`, 2026-10-22. |
 | Rendering | Partial (2D UI) | `RECOMP_PB_EXEC=1`: pushbuffer decoded and 2D UI quads rasterised. No 3D scene is drawn. Flat coloured panels are correct: the title's vertex program writes constant texture coordinates, so each quad samples one texel. |
 
-Progress stops at a black screen after the New Game menu pan-out. Details and
-exact log lines: [`docs/BOOT_LOG.md`](docs/BOOT_LOG.md).
+Progress stops at the save-creation screen, because saving is not implemented.
+Details and exact log lines: [`docs/BOOT_LOG.md`](docs/BOOT_LOG.md).
 
 ![New Game menu, commit 2c823a0, RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1, physical gamepad](docs/img/new-game-menu.png)
+
+![Save-creation screen, commit da71693, RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1 RECOMP_AC97_READY=1, physical gamepad](docs/img/save-screen.png)
 
 The open blockers behind that limit are tracked in
 [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
@@ -67,8 +71,9 @@ The open blockers behind that limit are tracked in
 
 - **No 3D scene.** The push-buffer executor decodes the guest command stream and
   rasterises 2D UI quads, but no 3D content is drawn.
-- **No working input.** The pad enumerates and its reports are served, but the
-  title never polls it, so the title screen does not react.
+- **Input is partial.** One run reached New Game with a physical pad, but the
+  title does not react to input in general. See `docs/KNOWN_ISSUES.md`.
+- **No saving.** Save creation is reached but not implemented.
 - **No DSP effects.** The DSP is a passthrough stub, so the mixed output is
   produced but the title's audio effects are not emulated.
 - **The MSVC 2022 path is untested.** The MinGW-w64 cross-build is the verified

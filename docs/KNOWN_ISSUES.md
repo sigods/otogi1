@@ -5,7 +5,7 @@ evidence behind it, the current status, and where a fix belongs. Milestone statu
 is in [`../ROADMAP.md`](../ROADMAP.md); the raw history is in
 [`BOOT_LOG.md`](BOOT_LOG.md).
 
-## Input is not accepted at the title screen
+## Input does not work in general (not blocking the New Game path)
 
 - **Symptom:** the title screen does not react to a pad. The log signature is
   `irq held off by guest IRQL (depth 1, status=0x02)`; the done-queue drain
@@ -17,7 +17,9 @@ is in [`../ROADMAP.md`](../ROADMAP.md); the raw history is in
   `tail == request`, writes the node's own address into itself; the drain then
   never sees `head = 0`. `RECOMP_QTRACE=1` captured `+24: 00000000 -> 01121038`
   with `head=tail=01121038`.
-- **Status:** open. The IRQL depth of 1 is a symptom, not the cause: the guest
+- **Status:** open, no longer blocking. One run with a physical pad reached New Game
+  and save creation (`BOOT_LOG.md`, 2026-10-24), so this stall is not the only path.
+  The IRQL depth of 1 is a symptom, not the cause: the guest
   DPC that drains the corrupted queue raises DISPATCH and never lowers it.
 - **Falsified, so do not retry:** a kernel-object wait, a done-queue self-link,
   a controller stuck in reset, ISR reentrancy, a DPC-versus-timer race, and the
@@ -29,14 +31,17 @@ is in [`../ROADMAP.md`](../ROADMAP.md); the raw history is in
   required. Do not claim it works.
 - **Where the fix belongs:** the `xboxrecomp` toolkit.
 
-## Black screen after New Game
+## Save creation is reached, saving is not implemented
 
-- **Symptom:** with a physical gamepad, the pad reached the New Game menu.
-  Selecting New Game then shows a black screen.
-- **Evidence:** `BOOT_LOG.md`, 2026-10-24. One run,
-  `RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1`, `RECOMP_GUEST_LOCK` not set.
-- **Status:** open, not reproduced. stderr not yet captured; the cause is unknown.
-- **Where the fix belongs:** unknown until the stderr tail is captured.
+- **Symptom:** the run goes past New Game to the save-creation screen. Saving does
+  not happen: the save itself is not implemented.
+- **Evidence:** one run with `RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1
+  RECOMP_AC97_READY=1` and a physical gamepad. Screenshot: `docs/img/save-screen.png`.
+- **Earlier black screen:** after New Game the screen went black in earlier runs.
+  In the run that reached save creation, `RECOMP_AC97_READY=1` was set and the
+  black screen did not appear. This is one report, not a verified cause.
+- **Status:** open. Next step is the save path, not input.
+- **Where the fix belongs:** unknown until the save path is traced.
 
 ## No 3D scene is drawn
 

@@ -413,3 +413,12 @@ Template:
   - `[KERNEL] ordinal 175 (slot 98) esp=0x0154FF88` dominates and climbs about 1,400 per block, consistent with a polling loop. Once, ordinal 119 appears at `esp=0x0158FFCC` and then the loop resumes.
   - The run does not exit and does not crash.
 - Not yet known: the name of ordinal 175, and whether `[PB] 0 pushbuffer calls followed` is per-run or per-frame.
+
+## 2026-10-25 — save-creation screen reached with RECOMP_AC97_READY=1
+
+- Build: commit `da71693`, `build-linux`.
+- Command: `RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1 RECOMP_AC97_READY=1 ./build-linux/bin/otogi1`, physical gamepad.
+- Result: the run passed New Game and reached the save-creation screen. The earlier black screen after New Game did not appear in this run.
+- Conclusion: `RECOMP_AC97_READY=1` is the only switch added compared with the 2026-10-24 black-screen run. One run is not proof that it is the cause.
+- Not implemented: saving. The save-creation screen is reached, but the save is not written.
+- Screenshot: `docs/img/save-screen.png` (if present in the repository).
