@@ -69,9 +69,7 @@ with a physical gamepad.
 | <img src="docs/img/start-stage.png" alt="Start-game stage" width="420"> | <img src="docs/img/pause-menu.png" alt="Pause menu" width="420"> |
 | **Start-game stage.** The player's 3D model is drawn. The stage world is not: the only scenery visible is bamboo. | **Pause menu.** Opened from the start-game stage. |
 
-New Game menu, `RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1`, physical gamepad (no `RECOMP_AC97_READY`):
-
-![New Game menu](docs/img/new-game-menu.png)
+![Current state](docs/img/gameplay.png)
 
 The open blockers behind these limits are tracked in [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
 
