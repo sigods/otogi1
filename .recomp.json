@@ -39,9 +39,10 @@
     }
   ],
   "help": [
-    "Saving: save creation is reached but not implemented",
-    "Building with MSVC 2022",
-    "3D rendering: fixed-function batches and texture binding"
+    "Stage world rendering: fixed-function batches and texture binding",
+    "Black screen after New Game: capture stderr and name kernel ordinal 175",
+    "Save file: location, format and persistence across runs",
+    "Building with MSVC 2022 (never run)"
   ],
-  "notes": "Boots the retail USA XBE, runs the title's own main loop, plays the attract video and streams the menu BGM. Static recompilation with a pinned xboxrecomp submodule; no emulator and no CPU interpreter. No 3D scene: the software push-buffer executor rasterises 2D UI only. Currently is blocked on the save creation screen, not implemented. The DSP is a passthrough stub, so audio effects are absent. The MSVC 2022 path is documented but has never been run. Needs your own legally obtained USA Xbox disc; no game data is included."
+  "notes": "As of 2026-10-25: boots the retail USA XBE, runs the title's own main loop, plays the attract video and streams the menu BGM. With a physical gamepad (RECOMP_USB=1), repeated maintainer runs reach New Game, save creation and loading, the main menu, the start-game stage and the pause menu. On the start-game stage the player's 3D model is drawn, but the stage world is not: only bamboo is visible. Next: stage world rendering. A black screen after New Game was seen in two runs on 2026-10-24, neither with RECOMP_AC97_READY=1; later runs with it did not show it. The cause is not established. Static recompilation with a pinned xboxrecomp submodule; no emulator and no CPU interpreter. The DSP is a passthrough stub, so audio effects are absent. The MinGW-w64 Windows cross-build is verified to link and reach the display-mode call under Wine; the MSVC 2022 path has never been run. Needs your own legally obtained USA Xbox disc; no game data is included."
 }
