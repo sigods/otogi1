@@ -56,7 +56,7 @@ Read this file first, every session. Then `docs/INDEX.md`.
 `extract → xbe_parser → disasm → func_id → abi_analysis → [ghidra_naming] →
 recomp → cmake build → run → read stderr → fix → repeat`
 
-`regen.sh` drives steps 2–5. Full command detail: `docs/PIPELINE.md`.
+`regen.sh` runs the toolkit's `xbe_parser`, `disasm`, `func_id`, `abi_analysis` and `recomp` tools; it does not extract, name or build. Full command detail: `docs/PIPELINE.md`.
 The toolkit's own long-form guide is authoritative when something diverges.
 
 ## 5. Non-negotiable pipeline gates
@@ -80,8 +80,7 @@ These are the ways the pipeline fails *silently*. Do not skip them.
   `merge_names.py --apply`.
 - **The first run must not crash.** As of the v0.1 preview it reaches
   `[AV] SetDisplayMode`, runs the title's main loop, and keeps running.
-  `tools/smoke.sh` asserts a clean exit and non-silent audio. A crash is a
-  regression, not a starting state.
+  `tools/smoke.sh` asserts that the title keeps running until the timeout stops it, with no segmentation fault, and that the audio is non-silent. A crash is a regression, not a starting state.
 
 ## 6. Debugging loop (the actual work)
 

@@ -20,12 +20,13 @@ authoritative statement of what works.
 - Streamed menu BGM with measured non-zero PCM (`RECOMP_AC97_READY=1`).
 - Native Linux build, a verified MinGW-w64 cross-build, and a documented but
   untested MSVC 2022 path.
+- Input through the emulated USB pad (`RECOMP_USB=1`). New Game, save creation and loading, the main menu, the start-game stage and the pause menu were reached in maintainer runs.
+- The player's 3D model is drawn on the start-game stage; the stage world is not drawn.
 - `tools/smoke.sh build-linux`.
 
 ### Known issues
 
-- No 3D scene is drawn.
-- Input is not accepted: injected pad presses reach the guest but the title
-  screen does not react.
+- The stage world is not drawn: the player's 3D model is drawn on the start-game stage, and only bamboo is visible.
+- Black screen after New Game: seen in two 2026-10-24 runs without `RECOMP_AC97_READY=1`; not seen in later repeated runs with it. Cause not established.
 - The DSP is a passthrough stub, so audio effects are not emulated.
 - The MSVC 2022 path is untested.

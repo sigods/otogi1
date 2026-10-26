@@ -422,3 +422,14 @@ Template:
 - Conclusion: `RECOMP_AC97_READY=1` is the only switch added compared with the 2026-10-24 black-screen run. One run is not proof that it is the cause.
 - Not implemented: saving. The save-creation screen is reached, but the save is not written.
 - Screenshot: `docs/img/save-screen.png` (if present in the repository).
+
+## 2026-10-25 — state after repeated maintainer runs (docs update; no new stderr)
+- Phase: menus and start-game stage.
+- Observed (maintainer reports from repeated physical-gamepad runs): create and load save work; the main menu is reached; the start-game stage draws the player's 3D model but not the stage world (only bamboo is visible); the pause menu works.
+- RVA / target: not recorded.
+- Diagnosis: not applicable (observation only).
+- Switches: not recorded for these runs. The README captions assume `RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1 RECOMP_AC97_READY=1` with a physical gamepad.
+- Earlier docs: README and KNOWN_ISSUES at 79df37e say saving is not implemented. These reports supersede that for create and load. Where the save file is written is not recorded.
+- Open: stage world not drawn; black-screen cause unknown; kernel ordinal 175 unnamed; the change that let the pad reach New Game (2026-10-22 to 2026-10-24) is not recorded.
+- Fix: none (docs only).
+- Result: README, KNOWN_ISSUES, ROADMAP, CHANGELOG, FAQ, NOTICE, CONTRIBUTORS, CONTRIBUTING, RUNNING, AGENTS, PIPELINE, ARCHITECTURE and TITLE_OTOGI updated to this state.

@@ -8,9 +8,9 @@
 | M1 — CRT startup | Reaches `main()`/`WinMain()` without crashing | ☑ | `docs/BOOT_LOG.md`, 2026-10-20 — reaches `[AV] SetDisplayMode`, exits 124, no crash |
 | M2 — Hardware init | D3D device + DirectSound + input created | ☑  | `README.md` § Status |
 | M3 — Asset load | Reads data from `game/` without SKIP-READ | ☑ | `README.md` § Status, File I/O — all XBE sections, assets and packed archives read |
-| M4 — Menus | Title screen renders | ☑ | `README.md` § Status — logos, attract video and 2D UI render |
-| M5 — Gameplay | Playable level at stable framerate | ☐ | blocked on 3D rendering |
-| M6 — Polish | Audio, save/load, rendering fixes, widescreen | ☐ | — |
+| M4 — Menus | Title screen renders | ☑ | `README.md` § Screens — title, New Game, save creation and loading, main menu and pause menu reached in maintainer runs |
+| M5 — Gameplay | Playable level at stable framerate | ◐ | player's 3D model drawn on the start-game stage; stage world not drawn (only bamboo visible); no playable level. `docs/KNOWN_ISSUES.md` § The stage world is not drawn |
+| M6 — Polish | Audio, save/load, rendering fixes, widescreen | ◐ | BGM works; DSP effects not emulated; create and load work in maintainer runs; widescreen not recorded |
 
 ## Non-goals
 

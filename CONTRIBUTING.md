@@ -6,8 +6,7 @@ Bug reports, corrections and pull requests are welcome.
 
 1. **Never commit game data.** No disc image, XBE, extracted asset, or generated
    recompiled source (`src/game/recomp/gen/`). The `repo hygiene` CI job fails
-   the build if one appears, and a pull request that adds one is rejected
-   without discussion.
+   the build if game data (`game/`, `.iso`, `.xbe`, `.xmv`, `.xps`) is tracked. Generated C is kept out by `.gitignore`, not by CI; a pull request that adds game data is rejected without discussion.
 2. **Say what was observed.** A claim about what the game does is worth
    something only with the log line, memory read, or screenshot behind it.
    "It should work" is not a fix.

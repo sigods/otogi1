@@ -27,7 +27,7 @@ must supply your own legally obtained copy of the game; `game/` and
 Runtime toolkit
 ---------------
 The executable is built against the `xboxrecomp` toolkit
-(https://github.com/sp00nznet/xboxrecomp), which is MIT-licensed. A copy of the
+(https://github.com/sp00nznet/xboxrecomp), which is MIT-licensed, except for the xemu-derived files listed below. A copy of the
 toolkit, with this project's changes, is a submodule at `xboxrecomp/`;
 the upstream base and the delta are recorded in
 `xboxrecomp/UPSTREAM.md`. The toolkit's own `LICENSE` and `NOTICE`
@@ -64,5 +64,7 @@ which is what satisfies that requirement.
 No warranty
 -----------
 This is an unfinished technical preview provided as-is, without warranty of any
-kind. It reaches the title screen, renders its logos, the attract video and 2D
-UI, and draws no 3D scene. It does not accept controller input.
+kind. It reaches the title screen, the New Game menu, save creation and loading,
+the main menu, the start-game stage and the pause menu. On the stage the player's
+3D model is drawn, but the stage world is not. A physical gamepad drives those
+screens (RECOMP_USB=1).

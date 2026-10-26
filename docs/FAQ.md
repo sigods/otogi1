@@ -4,9 +4,7 @@ Short answers. Each one points at the document that has the detail.
 
 ## Is this playable?
 
-No. It boots the retail XBE, plays the attract video and BGM, and draws 2D UI,
-then stops at the title screen. See [`../README.md`](../README.md) § Status and
-[`../ROADMAP.md`](../ROADMAP.md).
+No. It boots the retail XBE, plays the attract video and BGM, runs the title's menus (New Game, save creation and loading, the main menu) and the pause menu, and draws the player's 3D model on the start-game stage. The stage world is not drawn yet, so there is no playable level. See [`../README.md`](../README.md) § Status and [`../ROADMAP.md`](../ROADMAP.md).
 
 ## Do I need the game disc?
 
@@ -21,10 +19,17 @@ partition in front of the filesystem, which is why the toolkit's own reader
 (`python3 -m tools.xiso`) is required to unpack it. Other regions are not
 documented in this repository.
 
-## Why is there no 3D?
+## Why is the stage world missing?
 
-The guest's GPU command stream is decoded and the 2D path rasterises, but no 3D
-scene is drawn. [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) has the current state.
+The guest's GPU command stream is decoded and the 2D path rasterises the UI. The player's 3D model is drawn on the start-game stage; the stage world is not drawn yet. [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) has the current state.
+
+## Can I use a controller?
+
+Yes, on Linux, with `RECOMP_USB=1` and a physical gamepad. Maintainer runs reached New Game, save creation and loading, the main menu, the start-game stage and the pause menu this way. See [`../README.md`](../README.md) § Step by step, step 7.
+
+## Do saves work?
+
+Creating and loading a save work in the menus, in maintainer runs. The save file's location and format are not recorded yet; see [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md).
 
 ## Does it run on Steam Deck?
 

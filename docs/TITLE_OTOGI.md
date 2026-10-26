@@ -6,10 +6,10 @@
 |---|---|---|
 | Title ID | `0x46530002` (FS-002) | xemu title DB |
 | Developer | FromSoftware | Wikipedia |
-| Publisher | Sega (JP: FromSoftware) | Wikipedia |
+| Publisher | JP: FromSoftware; NA/EU: Sega | Wikipedia |
 | Released | JP 2002-12-12; NA 2003-08-26; EU 2003-09-05 | Wikipedia |
 | Genre | Action RPG / hack-and-slash | Wikipedia |
-| Xemu status | Playable, minor issues | xemu title DB |
+| Xemu status | Playable, minor issues (community report, last tested 2024-06-29) | xemu title DB; [xemu compatibility page](https://xemu.app/titles/46530002/) |
 | Attract video | Plays — the title's own XMV decoder | `README.md` § Status |
 
 ## Unknown — determine empirically, then update this file

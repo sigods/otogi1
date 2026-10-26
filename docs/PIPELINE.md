@@ -4,8 +4,7 @@ All Python steps run **from inside the toolkit clone**, because `tools/` lives
 there. Every path below is relative to `xboxrecomp/`: the disc extracts to
 `../game`, and the generated C goes to `../src/game/recomp/gen`.
 
-`regen.sh` at the repository root performs that `cd` for you and drives steps
-2–5. Commands use `python3`; on Windows, `py -3` (the Python Launcher) is
+`regen.sh` at the repository root performs that `cd` for you and runs `xbe_parser`, `disasm`, `func_id`, `abi_analysis` and `recomp`. Commands use `python3`; on Windows, `py -3` (the Python Launcher) is
 equivalent.
 
 ## Step 0 — layout
@@ -107,7 +106,7 @@ current directory.
 
 In the current state it does not crash. It reaches `[AV] SetDisplayMode`, runs
 the title's main loop, and continues until killed. `tools/smoke.sh` asserts
-that, along with a clean exit and non-silent audio.
+that, along with no early exit, no segmentation fault and non-silent audio.
 
 Work on a blocker starts from [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md); the
 debugging loop is `AGENTS.md` § 6.

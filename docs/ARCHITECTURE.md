@@ -30,11 +30,11 @@ not in the title glue.
 
 ## Where this project stands
 
-Boot, hardware init, asset load and the title screen all work; gameplay does
+Boot, hardware init, asset load, the menus and pad input work in maintainer runs; the stage draws the player's 3D model but not the stage world, so gameplay does
 not. [`../ROADMAP.md`](../ROADMAP.md) has the milestone status and
 [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) has the open blockers with the layer each
-one belongs to. Read both before assuming a layer is broken: the input stall is
-in the toolkit's USB software queue, and the missing 3D is in the push-buffer
+one belongs to. Read both before assuming a layer is broken: the input stall recorded on 2026-10-22 was
+in the toolkit's USB software queue, and the missing stage world is recorded against the push-buffer
 executor.
 
 ## Typical game phases (attack one at a time)

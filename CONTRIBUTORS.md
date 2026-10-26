@@ -23,8 +23,6 @@ This project stands on other people's work:
   static recompilation toolkit, a submodule at `xboxrecomp/`. Most of it is
   MIT, but the parts derived from xemu are LGPL-2.1-or-later. Local changes are
   listed in `xboxrecomp/UPSTREAM.md`.
-- **xemu** and its contributors — the MCPX APU sources and the NV2A register
-  definitions, **LGPL-2.1-or-later**. [`NOTICE`](NOTICE) lists the affected
-  paths, the copyright holders, and where the licence text lives.
+- **xemu** and its contributors — some of the MCPX APU and NV2A sources, **LGPL-2.1-or-later**. [`NOTICE`](NOTICE) lists the affected paths and copyright holders; the per-file list is in `xboxrecomp/NOTICE`, and the licence text is in `xboxrecomp/LICENSES/LGPL-2.1.txt`.
 - **FromSoftware, Inc. and Sega Corporation** — *Otogi: Myth of Demons* itself,
   which this project recompiles. No game code or assets are distributed here.
