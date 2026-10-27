@@ -433,3 +433,98 @@ Template:
 - Open: stage world not drawn; black-screen cause unknown; kernel ordinal 175 unnamed; the change that let the pad reach New Game (2026-10-22 to 2026-10-24) is not recorded.
 - Fix: none (docs only).
 - Result: README, KNOWN_ISSUES, ROADMAP, CHANGELOG, FAQ, NOTICE, CONTRIBUTORS, CONTRIBUTING, RUNNING, AGENTS, PIPELINE, ARCHITECTURE and TITLE_OTOGI updated to this state.
+
+## 2026-10-26 — the input stall is a guest single-CPU race; the dispatch gate clears it
+
+- Phase: menus / gameplay (any run with a pad present).
+- Symptom: with `RECOMP_USB=1` the title stops flipping after 16-24 flips. The
+  `[GPU]` report repeats `0.00 fps (17 flips)` and `[GPU] draws 30` unchanged,
+  the kernel counters show `RtlEnterCriticalSection`/`RtlLeaveCriticalSection`
+  (ordinals 277/294) climbing, and a debugger finds two guest threads inside
+  `sub_00172BD2`, called from the USB software-queue drain `sub_00172F70`
+  (`sub_00173068 -> sub_0017302C -> sub_00172F70 -> sub_00172BD2`). One thread
+  is in the submit path, one in the drain, both inside the same enqueue.
+- Evidence that it is concurrency and not a queue bug: `taskset -c 0` (the whole
+  process on one core, so guest threads can no longer run at the same instant)
+  runs the same command for 30 s at 47.95 fps with 1585 flips and no stall.
+- RVA / target: 0x0017302C (enqueue), 0x00172F70 (drain), 0x00172BD2 (start
+  transfer). The self-link itself is the one recorded on 2026-10-22: when
+  `tail == request`, `[tail+0x24] = request` points the node at itself and the
+  drain never terminates.
+- Diagnosis: other — guest code that assumes the console's single CPU.
+- Fix: `RECOMP_DISPATCH_GATE=1`. The toolkit's gate serialises the transitions
+  into DISPATCH_LEVEL and delivers device interrupts through the gate holder,
+  which is the property the USB stack was relying on. Measured: 1739 flips at
+  18.27 fps in 25 s with the gate, 17 flips and no progress without it.
+  `src/game/main.c` now sets it on by default (`otogi_set_default_env`), because
+  no run with a pad survives without it; an explicit
+  `RECOMP_DISPATCH_GATE=0` still overrides.
+- Result: the title runs with a pad for minutes instead of seconds. Next
+  blocker: reaching the stage needed input, see the next entry.
+
+## 2026-10-26 — headless pad input: RECOMP_AUTOPRESS on POSIX
+
+- Phase: menus / gameplay.
+- Symptom: none; the Windows backend had `RECOMP_AUTOPRESS` and the POSIX one
+  did not, so a headless run could not leave the title screen. The guest
+  reaches a pad only through the emulated USB host, so there was no other way
+  in without hardware.
+- Fix: `src/input/xinput_device.c`, `autopress_state()` — a START tap at 1.5 s
+  and 3.5 s, then an A tap every `RECOMP_AUTOPRESS_PERIOD_MS` (default 1200).
+  A tap holds the button for a quarter of the period, so the driver sees an
+  edge. START is deliberately not left on the schedule: with START and A held
+  together for the whole run, a 280 s run ended back in a menu instead of in
+  the stage.
+- Result: `RECOMP_PB_EXEC=1 RECOMP_USB=1 RECOMP_AUTOPRESS=1` boots, starts a
+  new game, and reaches the start-game stage with the player character
+  rendered, in about 90-120 s of wall time, with no pad and no window.
+
+## 2026-10-26 — OpenGL back end: it was drawing nothing at all
+
+- Phase: menus / gameplay. Build: this tree, `build-linux`.
+- Symptom: every frame captured with `RECOMP_FB_DUMP` was uniformly black or
+  uniformly white, on a machine where the backend itself reported
+  `[PBGL] OpenGL 4.6 (Core Profile) Mesa 26.2.4, AMD Radeon RX 570 Series`,
+  created its targets and uploaded its textures. The census looked healthy
+  (`22972894` indices, `12 textured` batches) while the picture was empty.
+- Diagnosis: a missing `glUseProgram`. `nv2a_pb_gl.c` built the program and
+  cached its uniform locations, but never made it current, so every uniform
+  write and every draw was an error and no fragment was produced. The draws
+  were counted by the executor either way, which is what made it look like a
+  rendering difference rather than a no-op.
+- Fix: `nv2a_pb_gl.c` binds the program in `gl_ready()` (once per thread, with
+  the context), and remembers that the context is current for the thread so a
+  draw no longer pays a `SDL_GL_MakeCurrent` per batch.
+  Also in the same file: triangles with non-finite or off-scale (>1e6 px)
+  vertices are dropped, as the CPU rasteriser's span test effectively does —
+  `[GPU] transforms:` reports 1.6M such vertices, and GL was rasterising the
+  wedges they made over the scene.
+- Result: logos, the front-end menus, the intro cutscene and the start-game
+  stage all render through GL. `docs/img/*` were captured through it.
+
+## 2026-10-26 — vertex programs: 12 fps to 40 fps on the stage
+
+- Phase: gameplay (stage), also the intro cutscene. Build: this tree.
+- Symptom: the stage and the cutscene ran at 11-13 fps with ~68k vertices per
+  frame. `perf record -F 199 -g` on the run put `nv2a_vsh_run` at 20.5% and
+  `read_src` at 16.8% of every cycle in the process (37% together), and the
+  guest's own D3D kickoff (`sub_000FA0C0`, which spins on the PFB flush bit at
+  0x100410 until the walker clears it) at 44% — the guest was waiting for the
+  CPU vertex stage.
+- Diagnosis: other — the software vertex shader was the frame.
+- Fix, all in the toolkit:
+  - `nv2a_vsh_interp.c`: the program is decoded once (a generation counter
+    bumps on every program write) into a `VshIns` form with the source mux,
+    swizzle, negate and constant index resolved, instead of four bitfield
+    extractions per source per vertex.
+  - `nv2a_vsh_input_mask()` + `nv2a_pb_exec.c`: the executor fetches only the
+    attribute streams the program reads, not all sixteen.
+  - `nv2a_pb_exec.c`: the transform runs on a small work-claiming pool
+    (`RECOMP_XF_THREADS`, default cores-1, max 8). The decoded program is
+    read-only, attributes are guest-memory reads and each vertex writes only
+    its own output slot, so no lock is needed.
+- Result, same scene: 12.35 fps at flip 8097 before, 39.87 fps at flip 12241
+  after (2.68M draws, 401M vertices, 26.9M triangles dropped behind the eye).
+  Menus and the attract loop: 90-120 fps. Intro cutscene: 25-29 fps.
+  `[GPU] draws 30`-style stalls are gone; the title sustains a frame loop.
+- Next blocker: the stage world is still not drawn, see `KNOWN_ISSUES.md`.

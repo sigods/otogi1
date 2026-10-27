@@ -39,8 +39,11 @@ and claim in this repository.
 
 ## Status
 
-Status as of 2026-10-25, from the maintainer's repeated runs. The menu and
-stage flow used a physical gamepad with `RECOMP_USB=1`.
+Status as of 2026-10-26. Runs are headless, on Linux, through the OpenGL
+push-buffer back end: `RECOMP_PB_EXEC=1 RECOMP_USB=1 RECOMP_AUTOPRESS=1
+./build-linux/bin/otogi1` drives the title from the logos to the start-game
+stage with no pad and no window. A physical gamepad still works and is what
+the earlier screenshots used.
 
 | Component | State | Notes |
 |---|---|---|
@@ -50,9 +53,10 @@ stage flow used a physical gamepad with `RECOMP_USB=1`.
 | File I/O | Works | All XBE sections, assets, and the title's packed `.dev`/`.000` archives. |
 | Audio | Works (BGM) | `RECOMP_AC97_READY=1`: streamed BGM with measured non-zero PCM. The DSP is a passthrough stub, so effects are not emulated. |
 | Video | Works | The title's own XMV decoder plays the looping attract video. The toolkit's host video player is a POSIX stub and is not required. |
-| Input | Works | Physical gamepad with `RECOMP_USB=1` (OHCI controller and emulated pad). Drives the title, New Game, save creation and loading, the main menu, the start-game stage and the pause menu. |
+| Input | Works | Physical gamepad with `RECOMP_USB=1` (OHCI controller and emulated pad). Headless runs use `RECOMP_AUTOPRESS=1`, which taps START then A. Drives the title, New Game, save creation and loading, the main menu, the start-game stage and the pause menu. |
 | Saves | Create and load work | Creating and loading a save work in the menus. Where the save file is written, and its format, are not recorded yet. |
-| Rendering | Partial | 2D UI, and the player's 3D model on the start-game stage. The stage world is not drawn: only bamboo is visible. |
+| Rendering | Partial, on the GPU | The push-buffer executor hands batches to an OpenGL 3.3 back end (`src/nv2a/nv2a_pb_gl.c` in the toolkit): logs, the front-end menus, the intro cutscene, the HUD and the player's 3D model all render through it, and the frame is read back into the title's own colour surface. The stage world is still missing (see below). `RECOMP_PB_GL=0` keeps the CPU rasteriser. |
+| Framerate | Playable | Measured on the RX 570 / Ryzen box: 90-120 fps in the menus and the attract loop, 25-29 fps in the intro cutscene, ~40 fps on the start-game stage (12 fps before the vertex stage was decoded once, fetched selectively and run on a thread pool). |
 
 Details and exact log lines: [`docs/BOOT_LOG.md`](docs/BOOT_LOG.md). Open blockers: [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
 
@@ -69,15 +73,23 @@ with a physical gamepad.
 | <img src="docs/img/start-stage.png" alt="Start-game stage" width="420"> | <img src="docs/img/pause-menu.png" alt="Pause menu" width="420"> |
 | **Start-game stage.** The player's 3D model is drawn. The stage world is not: the only scenery visible is bamboo. | **Pause menu.** Opened from the start-game stage. |
 
+<img src="docs/img/gl-stage.png" alt="Start-game stage through the OpenGL back end" width="640">
+
+**The same stage through the OpenGL back end**, captured headlessly with
+`RECOMP_FB_DUMP` (`RECOMP_PB_EXEC=1 RECOMP_USB=1 RECOMP_AUTOPRESS=1`). The
+character, the HUD orb, the bamboo and the sword trail are drawn by the GPU;
+the world behind them is still missing, which is the open blocker.
+
 ![Current state](docs/img/gameplay.png)
 
 The open blockers behind these limits are tracked in [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
 
 ## Known limitations
 
-- **The stage world is not drawn.** The player's 3D model is drawn on the start-game stage; only bamboo is visible as scenery. There is no playable level.
+- **The stage world is not drawn.** The player's 3D model, the HUD and the bamboo are drawn on the start-game stage; the rest of the world is not, and shows as large flat polygons. Both rasterisers (CPU and OpenGL) show the same thing from the same decoded batches, so the fault is in what the executor builds, not in the back end. See [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
 - **Black screen after New Game.** Two runs on 2026-10-24 showed a black screen after the menu pan-out delay: one plain, one with `RECOMP_GUEST_LOCK=1`. Neither had `RECOMP_AC97_READY=1`. Repeated maintainer runs with `RECOMP_AC97_READY=1` did not show it. That switch is the only difference recorded, so it is a correlation, not an established cause. Stderr from a black-screen run has not been captured. See [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
-- **No recorded cause for the input fix.** The 2026-10-22 input stall has not been seen since 2026-10-24, but no record names the change that cleared it.
+- **The dispatch gate is a project default, not a toolkit one.** `src/game/main.c` sets `RECOMP_DISPATCH_GATE=1` because this title's USB stack self-links its software queue on a multi-core host without it (`docs/BOOT_LOG.md`, 2026-10-26). `RECOMP_DISPATCH_GATE=0` still overrides. The gate is opt-in in the toolkit because it changes when DPCs and interrupts run for every title.
+- **The OpenGL back end approximates the material path.** It samples texture stage 0 and multiplies by the interpolated vertex colour; the CPU rasteriser evaluates the title's register combiners and fog. Titles or scenes whose look depends on those draw differently, and the stage world's materials are untested against a correct reference.
 - **The save file is not documented.** Creating and loading a save work. The file's location and format are not recorded yet.
 - **No DSP effects.** The DSP is a passthrough stub, so the mixed output is produced but the title's audio effects are not emulated.
 - **The MSVC 2022 path is untested.** The MinGW-w64 cross-build is the verified Windows path.
@@ -179,8 +191,13 @@ POSIX shell — Linux, or Git Bash on Windows.
    $ RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1 RECOMP_AC97_READY=1 ./build-linux/bin/otogi1
    $ RECOMP_FB_WINDOW=1 RECOMP_AC97_READY=1 ./build-linux/bin/otogi1 # window + BGM
    $ RECOMP_PB_EXEC=1 ./build-linux/bin/otogi1 # GPU command stream
-   $ RECOMP_USB=1 RECOMP_AUTOPRESS=1 ./build-linux/bin/otogi1 # sends START+A through the emulated pad
+   $ RECOMP_PB_EXEC=1 RECOMP_USB=1 RECOMP_AUTOPRESS=1 ./build-linux/bin/otogi1 # headless, drives itself to the stage
+   $ RECOMP_PB_EXEC=1 RECOMP_USB=1 RECOMP_AUTOPRESS=1 RECOMP_PB_GL=0 ./build-linux/bin/otogi1 # same, CPU rasteriser
    ```
+
+   Drawing goes through the OpenGL back end by default and needs a display;
+   `RECOMP_PB_GL=0` is the CPU rasteriser, about ten times slower on the same
+   scene.
 
    On a headless box, run the window under `Xvfb`. These are the switches the README relies on; [`AGENTS.md`](AGENTS.md) § 7 lists the rest, including the diagnostic ones added during bring-up.
 

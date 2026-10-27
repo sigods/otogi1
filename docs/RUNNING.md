@@ -53,6 +53,10 @@ It runs the title's main loop indefinitely; `Ctrl+C` ends it.
 
 **Reference run:** `RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1 RECOMP_AC97_READY=1 ./build-linux/bin/otogi1` with a physical gamepad reaches New Game, save creation and loading, the main menu, the start-game stage and the pause menu. On the stage the player's 3D model is drawn; the stage world is not.
 
+**Headless run, no pad:** `RECOMP_PB_EXEC=1 RECOMP_USB=1 RECOMP_AUTOPRESS=1 ./build-linux/bin/otogi1` taps START then A on the emulated pad, starts a new game and reaches the start-game stage in about 90-120 s. It renders through the OpenGL back end by default. Add `RECOMP_FB_DUMP=/tmp/f` and `RECOMP_FB_DUMP_FLIPS=/tmp/go` to write a BMP per presented frame while `/tmp/go` exists — the only way to look at a headless run.
+
+The OpenGL path needs a display. On a machine with none, run it under `Xvfb`; without one, `RECOMP_PB_GL=0` falls back to the CPU rasteriser, which is roughly ten times slower on the same scene.
+
 ## Switches
 
 Each is an environment variable, read once at startup. These are the ones these
@@ -67,6 +71,10 @@ instructions use; `AGENTS.md` § 7 has the complete set.
 | `RECOMP_AC97_READY=1` | MCPX APU and host audio output |
 | `RECOMP_AUDIO_WAV=path` | Capture the mixed output to a WAV file |
 | `RECOMP_SYNC_IO=1` | Complete `NtReadFile` inline (pre-audio-fix behaviour) |
+| `RECOMP_AUTOPRESS=1` | Tap START then A on the emulated pad (needs `RECOMP_USB`); `RECOMP_AUTOPRESS_PERIOD_MS` sets the A-tap period |
+| `RECOMP_PB_GL=0` | Keep the CPU rasteriser instead of the OpenGL back end |
+| `RECOMP_XF_THREADS=<n>` | Vertex-transform workers (default cores-1, max 8) |
+| `RECOMP_DISPATCH_GATE=1` | Serialise DISPATCH_LEVEL and interrupts; set by default for this title |
 
 On a headless box, run the window under `Xvfb`.
 

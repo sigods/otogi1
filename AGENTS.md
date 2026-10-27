@@ -109,6 +109,10 @@ in the other 20% — stubs, indirect calls, and hardware-facing code.
 | `RECOMP_USB` | USB OHCI host + emulated pads on/off |
 | `RECOMP_AUTOPRESS` | Send START+A through the emulated pad (requires `RECOMP_USB`) |
 | `RECOMP_PAD_LIVE` | Drive the title headless from a live pad |
+| `RECOMP_PB_GL` | OpenGL push-buffer back end; `RECOMP_PB_GL=0` keeps the CPU rasteriser |
+| `RECOMP_XF_THREADS` | Vertex-transform workers (default cores-1, max 8) |
+| `RECOMP_DISPATCH_GATE` | Serialise DISPATCH_LEVEL and device interrupts; set to 1 by `src/game/main.c` for this title |
+| `RECOMP_FB_DUMP` / `RECOMP_FB_DUMP_FLIPS` | Write the presented surface as BMPs (prefix / gate file) |
 | `RECOMP_AC97_READY` | MCPX APU and host audio output (SDL2 on Linux, XAudio2 on Windows) |
 | `RECOMP_AUDIO_WAV` | Capture the mixed output to a WAV file (takes a path) |
 | `RECOMP_SYNC_IO` | Complete `NtReadFile` inline (pre-audio-fix behaviour) |

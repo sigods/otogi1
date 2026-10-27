@@ -400,6 +400,24 @@ int main(int argc, char **argv)
 int xbox_HostWindowMain(int (*guest_main)(void));
 #endif
 
+/* Runtime defaults this title needs, applied before the toolkit reads them.
+ *
+ * The dispatch gate: on the console the guest's driver code never runs beside
+ * an interrupt, and this title's USB stack leans on that -- its software
+ * queue self-links when two guest threads are inside the enqueue at once, and
+ * the drain then spins on a node that points at itself. Measured here: with a
+ * pad present the title deadlocks after about 17 flips without the gate, and
+ * runs for minutes with it (docs/BOOT_LOG.md, 2026-10-26). It is opt-in in the
+ * toolkit because it changes how every title schedules DPCs and interrupts;
+ * for this title it is not optional, so the project turns it on. An explicit
+ * RECOMP_DISPATCH_GATE=0 in the environment still wins.
+ */
+static void otogi_set_default_env(void)
+{
+    if (!getenv("RECOMP_DISPATCH_GATE"))
+        setenv("RECOMP_DISPATCH_GATE", "1", 1);
+}
+
 static int otogi_guest_main(void)
 {
     void *xbe_data = NULL;
@@ -484,10 +502,24 @@ int main(void)
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 
+    otogi_set_default_env();
+
 #if defined(_WIN32)
     /* Presentation on Windows goes through the toolkit's D3D11 presenter. */
     return otogi_guest_main();
 #else
+    /* The OpenGL back end must be created here, on the main thread, before
+     * the window loop takes it over: SDL video and the GL context are made
+     * in nv2a_pb_gl_init(). The push-buffer executor's poll thread merely
+     * makes that context current when it draws. Returns 0 (and the CPU
+     * rasteriser carries on) if it is disabled with RECOMP_PB_GL=0 or there
+     * is no display. Declared here because the toolkit does not export it
+     * through a public header the project includes. */
+    {
+        int nv2a_pb_gl_init(void);
+        if (nv2a_pb_gl_init())
+            fprintf(stderr, "[otogi1] OpenGL back end active (RECOMP_PB_GL=0 to disable)\n");
+    }
     return xbox_HostWindowMain(otogi_guest_main);
 #endif
 }
