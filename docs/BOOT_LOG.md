@@ -985,3 +985,26 @@ Template:
   `record_tex_reg()` during the transition shows whether the methods arrive.
 - Result: the transition quad is now identified in one log line, which is what
   the wipe entry has been missing; nothing was changed in the renderer.
+
+## 2026-10-28 — the pad script can move the camera; the ground is still behind the haze
+
+- Phase: gameplay (start-game stage)
+- Symptom: every capture so far had the camera tilted up, because the scripts
+  only tapped START/A, so the ground could not be looked at. `usb_gamepad.c`
+  already parses stick entries (`lup`/`ldown`/`lleft`/`lright` and the right
+  stick), so `190000:rdown:6000` was appended to the stage script and a 235 s
+  run gated at 185 s took 31 frames with the camera moved.
+- What that frame shows (frame 19): the bamboo canopy from below, the mist
+  band, the HUD orb, and the **olive full-height effect band** of the entry
+  above, standing in front of the trunk line. The lower part of the frame is
+  blue-grey haze with no terrain silhouette or texture, so the ground is
+  submitted (FLAT paints it) but reads as haze at this camera angle -- the
+  same "ground never separates from the sky" signature the fog fix was meant
+  to clear, at an angle the earlier captures never sampled.
+- Diagnosis: open. Two candidates remain, and they are separable: the haze
+  band itself (an effect plane drawn over the ground) or the ground's own
+  shading. `RECOMP_FOG_ONE` changed nothing, so it is not the fog factor.
+- Fix: none. The script change (a stick hold) is the useful part -- it is how
+  the next run gets a camera that looks at the ground at all.
+- Result: ground assessment is now possible from a capture instead of blocked;
+  the frame to start from is `/tmp/gGND/f00019.bmp` in this session's scratch.
