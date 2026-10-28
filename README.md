@@ -14,8 +14,10 @@ title's own logic.
 **This is a research preview, not a playable port.** It boots the retail XBE,
 runs the title's own main loop, plays the menu BGM and the attract video, and
 reaches the New Game menu, save creation and loading, the main menu, the
-start-game stage and the pause menu. On the stage the player's 3D model is
-drawn; the stage world is not drawn yet, and only bamboo is visible.
+start-game stage and the pause menu. On the stage the bamboo grove, the ground
+haze, the light shafts, the HUD and the player's 3D model are drawn. The
+remaining rendering gap is the title's movie — see
+[`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
 
 **AI-assisted.** Code, debugging, and documentation were produced with
 substantial AI assistance; the maintainer reviewed and verified every change
@@ -39,7 +41,7 @@ and claim in this repository.
 
 ## Status
 
-Status as of 2026-10-26. Runs are headless, on Linux, through the OpenGL
+Status as of 2026-10-27. Runs are headless, on Linux, through the OpenGL
 push-buffer back end: `RECOMP_PB_EXEC=1 RECOMP_USB=1 RECOMP_AUTOPRESS=1
 ./build-linux/bin/otogi1` drives the title from the logos to the start-game
 stage with no pad and no window. A physical gamepad still works and is what
@@ -55,7 +57,7 @@ the earlier screenshots used.
 | Video | Works | The title's own XMV decoder plays the looping attract video. The toolkit's host video player is a POSIX stub and is not required. |
 | Input | Works | Physical gamepad with `RECOMP_USB=1` (OHCI controller and emulated pad). Headless runs use `RECOMP_AUTOPRESS=1`, which taps START then A. Drives the title, New Game, save creation and loading, the main menu, the start-game stage and the pause menu. |
 | Saves | Create and load work | Creating and loading a save work in the menus. Where the save file is written, and its format, are not recorded yet. |
-| Rendering | Partial, on the GPU | The push-buffer executor hands batches to an OpenGL 3.3 back end (`src/nv2a/nv2a_pb_gl.c` in the toolkit): logs, the front-end menus, the intro cutscene, the HUD and the player's 3D model all render through it, and the frame is read back into the title's own colour surface. The stage world is still missing (see below). `RECOMP_PB_GL=0` keeps the CPU rasteriser. |
+| Rendering | Partial, on the GPU | The push-buffer executor hands batches to an OpenGL 3.3 back end (`src/nv2a/nv2a_pb_gl.c` in the toolkit): logs, the front-end menus, the intro cutscene, the stage's world and the HUD all render through it, including the title's register combiners (the pixel stage, without which menu text carried black boxes), and the frame is read back into the title's own colour surface. Remaining gap: the title's movie; the effect planes' alpha is closed in [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md). `RECOMP_PB_GL=0` keeps the CPU rasteriser. |
 | Framerate | Playable | Measured on the RX 570 / Ryzen box: 90-120 fps in the menus and the attract loop, 25-29 fps in the intro cutscene, ~40 fps on the start-game stage (12 fps before the vertex stage was decoded once, fetched selectively and run on a thread pool). |
 
 Details and exact log lines: [`docs/BOOT_LOG.md`](docs/BOOT_LOG.md). Open blockers: [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
@@ -79,8 +81,6 @@ with a physical gamepad.
 `RECOMP_FB_DUMP` (`RECOMP_PB_EXEC=1 RECOMP_USB=1 RECOMP_AUTOPRESS=1`). The
 character, the HUD orb, the bamboo and the sword trail are drawn by the GPU;
 the world behind them is still missing, which is the open blocker.
-
-![Current state](docs/img/gameplay.png)
 
 The open blockers behind these limits are tracked in [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
 

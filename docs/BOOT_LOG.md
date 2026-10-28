@@ -822,3 +822,52 @@ Template:
 - Result: the stage draws dark green foliage, teal trunks and a dark ground
   under the haze band, and the player model is whole in close-ups with culling
   on. Still open: the transition wipe quad (below) and the movie.
+
+## 2026-10-28 — the stage's blue cast is not the fog unit
+
+- Phase: gameplay (start-game stage, OpenGL back end)
+- Symptom: with the fog offset fix in, the stage's frames still read strongly
+  blue: over the ordinary run the frames average R 18.3-35.0, G 60.2-76.8,
+  B 91.8-114.9, and the foreground band R 27.0 / G 67.3 / B 103.1, against
+  R 35.9 / G 51.9 / B 62.2 for the foreground of the reference
+  `docs/img/gameplay.png` -- a red deficit and a blue excess.
+- RVA / target: n/a (a shading question, not a lifted function)
+- Diagnosis: not fog, and this entry is the measurement that closes it.
+  `RECOMP_FOG_ONE=1` hands every pixel the no-fog factor, so it removes the fog
+  register's contribution whatever `fog_factor()` would otherwise say. Over a
+  full stage run (29 dumped frames) it changes nothing measurable: R 19.9-36.3,
+  G 63.1-84.3, B 95.4-132.5, i.e. the same spread as the ordinary run within
+  run-to-run variance. The blue therefore comes from what the combiner is fed
+  with -- the title's lighting, ambient and colour constants -- or is the
+  title's own night palette.
+- Fix: none. A hypothesis closed, not a bug found; nothing was changed.
+- Result: the next measurement is a like-for-like CPU capture. Two attempts at
+  it are recorded here because both failed the same way: `RECOMP_PB_GL=0` with
+  the pad script that puts the OpenGL run on the stage never reached the stage
+  (a 220 s run sat on the damask screen, a 420 s run ended on the `#003264`
+  fade with `sd = 0` for its last twenty frames), so the two back ends were
+  never looking at the same frames and no colour differential can be quoted
+  from them. Whoever picks this up should drive the CPU path until it is
+  *on* the stage first, then gate the dump.
+
+## 2026-10-28 — the full-frame colour panels are the title's, on both back ends
+
+- Phase: gameplay (stage transition)
+- Symptom: a frame that is one flat colour with only the HUD on it -- `#003264`
+  (0,50,100), `sd` 0.048 with the HUD in it -- among otherwise normal stage
+  frames; the same runs also produce a perfectly flat `(102,53,0)` panel.
+  These were read as the "transition wipe quad" of `docs/KNOWN_ISSUES.md`.
+- RVA / target: n/a
+- Diagnosis: two independent readings say the title draws them itself.
+  (1) `RECOMP_GL_FLAT=1` over the same period gives a `#003264` frame whose only
+  magenta is the HUD's region: FLAT paints magenta everything that is submitted
+  and passes depth, cull and alpha, so a screen-filling quad would be magenta,
+  and it is not -- nothing is drawn over the clear colour then.
+  (2) The CPU rasteriser, `RECOMP_PB_GL=0`, produces the identical frames: `sd`
+  exactly 0 at (0,50,100) for twenty frames, and a flat `(102,53,0)` panel
+  before them. That is the path this project treats as the reference.
+- Fix: none. Documentation only: the flat full-frame panels are removed from
+  the wipe's bill.
+- Result: `docs/KNOWN_ISSUES.md` gains an entry saying so, and `ROADMAP.md`
+  stops naming the wipe. The movie's two green/yellow strips are a different
+  symptom on a different surface and stay open.

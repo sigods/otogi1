@@ -84,6 +84,24 @@ different fault and the first two fixes only looked like each other.
   state if the batch is handed the wrong buffer. A dirty-page hook on guest
   writes to the texture's range is the general fix for (1).
 
+## Closed on 2026-10-28 — the full-frame colour panels
+
+- **Symptom (history):** full-screen frames of one flat colour — green, yellow
+  red — reported as a broken transition wipe quad, and seen again on the
+  start-game stage as a `#003264` (0,50,100) frame carrying only the HUD.
+- **Why it is closed:** the panels are the title's own, and both readings say
+  so. `RECOMP_GL_FLAT=1` over the same period gives the `#003264` frame with
+  magenta *only* where the HUD is: FLAT paints magenta every fragment that is
+  submitted and passes depth, cull and alpha, so a screen-filling quad would be
+  magenta — and nothing is drawn over the clear colour in that frame. The CPU
+  rasteriser, `RECOMP_PB_GL=0`, produces the same frames itself: `sd` exactly 0
+  at (0,50,100) for twenty frames, and a perfectly flat (102,53,0) panel before
+  them. That is the path this project treats as the reference.
+- **What stays open:** the movie's two green/yellow strips are a different
+  symptom on a different surface (above), and are not covered by this.
+- **Evidence:** `BOOT_LOG.md`, 2026-10-28, "the full-frame colour panels are
+  the title's, on both back ends".
+
 ## A depth patch on the title screen
 
 - **Symptom:** a rectangular region over the "PRESS START" area shows a
