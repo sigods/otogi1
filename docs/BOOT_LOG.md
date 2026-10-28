@@ -788,3 +788,37 @@ Template:
   half, so the ground is submitted and passes every gate); the fog colour
   unpack (R/B swap matches the CPU path); the front-face mapping (bamboo,
   ground and player all agree under the pass-through).
+
+## 2026-10-28 — the fog unit's offset painted the stage the fog colour
+
+- Phase: gameplay (start-game stage, both back ends)
+- Symptom: the ground never separated from the sky and the bamboo foliage was
+  pale cyan where the CPU reference (`docs/img/gameplay.png`) is dark green.
+  Nothing about culling, depth or the combiner explained it: `RECOMP_GL_FLAT=1`
+  painted the whole lower half, so the ground was submitted and passed every
+  gate, and `RECOMP_GL_NO_COMB=1` (diffuse times stage 0, no fog) drew the
+  foliage and bark the right dark green.
+- RVA / target: n/a (a fog unit constant, not a lifted function)
+- Diagnosis: `fog_factor()` subtracted a constant from the NV2A's
+  `fog_param0 + coord * fog_param1` (1.0 linear, 1.5 exponential). Otogi
+  enables fog, leaves both params at 1.0 and writes its own factor into oFog,
+  so the subtraction turned that factor straight into the fog factor:
+  px = py = 1 gives `f = d`, where hardware saturates `1 + d` to 1 -- no fog,
+  which is what the title wanted. The record that caught it:
+  `[FOG] mode 2601 en 1 px 1 py 1 d -nan -> f 1`, and a foliage batch a few
+  units from the camera at `fogf 0.429`, i.e. 57% fog colour on geometry the
+  title leaves unfogged.
+- Fix: `fog_factor()` in `src/kernel/nv2a_pb_exec.c`, linear path only:
+  `f = px + d * py`. The exponential paths keep their `-1.5f` -- this title
+  runs mode 0x2601 (LINEAR) and nothing here exercises exponential fog, so
+  there is no evidence for changing it and the old constant stands until a
+  title with one does.
+- Also in this pass: `RECOMP_FOG_TRACE=<n>` prints the first n fog evaluations
+  (mode, params, distance, factor) -- the capture that settled this, and cheap
+  enough to leave on. `RECOMP_GL_COMB3`/`RECOMP_GL_COMB3_MIN` do the same for
+  the combiner record of the *big 3D* batches; that record is what confirmed
+  the final combiner is `fogcolour*(1-f) + colour*f`, so the convention was
+  never the problem and the factor was.
+- Result: the stage draws dark green foliage, teal trunks and a dark ground
+  under the haze band, and the player model is whole in close-ups with culling
+  on. Still open: the transition wipe quad (below) and the movie.

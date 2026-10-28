@@ -2,36 +2,39 @@
 
 One entry per open blocker. Each records the symptom as it appears in a log, the evidence behind it, the current status, and where a fix belongs. Milestone status is in [`../ROADMAP.md`](../ROADMAP.md); the raw history is in [`BOOT_LOG.md`](BOOT_LOG.md).
 
-## The stage's lit geometry is drawn inside-out and too dark
+## The stage's lit geometry was drawn inside-out, torn and painted the fog colour
+
+Closed on 2026-10-28 in three parts; kept because each symptom pointed at a
+
+different fault and the first two fixes only looked like each other.
 
 - **Symptom:** on the start-game stage the bamboo trunks read as hollow black
   wedges with a green rim, the player model as a dark inside-out silhouette,
-  and the ground is the same blue as the sky. In close-up cutscene shots the
-  player tears into spiky triangles instead of a smooth model. The HUD, the
-  leaves, the haze planes and the light shafts draw.
-- **Fixed on 2026-10-28 — the inside-out half:** the OpenGL back end mirrored
-  `SET_FRONT_FACE` in `apply_state()`; mirrored, every closed mesh kept its
-  back faces (the inside). It now maps 0x0900/0x0901 straight through, and
-  `RECOMP_GL_NO_CULL=1`/the fixed build both draw the trunks solid. See
-  `BOOT_LOG.md`, 2026-10-28.
-- **Still open — the dark half:** the ground and the shaded side of the
-  trunks carry the fog/sky colour, and the close-up player tears. Evidence:
-  culling off changes neither the ground nor the tearing; `RECOMP_GL_FLAT=1`
-  paints the whole scene, so the geometry is submitted and passes depth, cull
-  and alpha; `RECOMP_GL_NO_COMB=1` makes the stage darker, not brighter, so
-  the combiner is not the only stage in play. `RECOMP_VSH_ALWAYS=1` is not
-  the answer (1.7M draw calls, flips stop).
-- **Ruled out:** an unimplemented stage mode (`[PBGL] stage modes` counts 270
-  mode-6 uses against 3.5M of 0/1/4), the G8B8 decode below, and culling
-  (above).
-- **Status:** open. Next lead: the per-vertex colour and fog factor the lit
-  batches hand the pixel stage, on **both** back ends — the CPU rasteriser
-  misses the ground too, so this is executor-side, not GL-side. `RECOMP_VSH_DUMP`
-  over a stage run is the cheapest next capture (the lighting programs are
-  the ones with `lit`/`dp3` and the c[64+] constants).
-- **Where the fix belongs:** the executor's vertex program interpreter or the
-  per-vertex inputs it builds (`src/kernel/nv2a_pb_exec.c`,
-  `src/kernel/nv2a_vsh_interp.c`), not the OpenGL back end's state.
+  and the ground was the same blue as the sky. In close-up cutscene shots the
+  player tore into spiky triangles instead of a smooth model. The HUD, the
+  leaves, the haze planes and the light shafts drew.
+- **The inside-out half (fixed):** the OpenGL back end mirrored `SET_FRONT_FACE`
+  in `apply_state()`; mirrored, every closed mesh kept its back faces (the
+  inside). It now maps 0x0900/0x0901 straight through.
+- **The torn half (fixed):** `NV_PRIM_TRIANGLE_STRIP` was decomposed as three
+  consecutive vertices in ascending order. The hardware reverses every other
+  triangle, so every odd one faced backwards -- invisible where nothing culls,
+  and a mesh shredded into its flipped triangles wherever the title does.
+  `RECOMP_CULL_LOG` shows Otogi's model arriving as strip batches with culling
+  on, alternating cull-front and cull-back.
+- **The blue wash half (fixed):** the fog unit subtracted a constant from
+  `fog_param0 + coord * fog_param1`. Otogi enables fog and leaves both params
+  at 1.0, which saturates to "no fog" on hardware; the subtraction turned the
+  program's own `oFog` into the fog factor instead, and painted the ground and
+  the foliage with the fog colour. `RECOMP_FOG_TRACE` caught it:
+  `[FOG] mode 2601 en 1 px 1 py 1 d -nan -> f 1`. The linear path no longer
+  subtracts anything. The exponential paths still do (see `BOOT_LOG.md`).
+- **Verification:** the stage now draws dark green foliage, teal trunks and a
+  textured dark ground under the haze band, with the player model whole in
+  close-ups, culling on.
+- **Where the fixes belong:** `apply_state()` in `src/nv2a/nv2a_pb_gl.c`, and
+  the primitive decompositions and `fog_factor()` in
+  `src/kernel/nv2a_pb_exec.c`.
 
 ## Closed on 2026-10-28 — the effect planes drew as hard-edged wedges
 

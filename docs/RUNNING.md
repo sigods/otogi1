@@ -51,9 +51,13 @@ $ ./build-win/bin/otogi1.exe # MinGW cross-build
 
 It runs the title's main loop indefinitely; `Ctrl+C` ends it.
 
-**Reference run:** `RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1 RECOMP_AC97_READY=1 ./build-linux/bin/otogi1` with a physical gamepad reaches New Game, save creation and loading, the main menu, the start-game stage and the pause menu. On the stage the player's 3D model is drawn; the stage world is not.
+**Reference run:** `RECOMP_USB=1 RECOMP_FB_WINDOW=1 RECOMP_PB_EXEC=1 RECOMP_AC97_READY=1 ./build-linux/bin/otogi1` with a physical gamepad reaches New Game, save creation and loading, the main menu, the start-game stage and the pause menu. On the stage the bamboo grove, the ground haze, the light shafts, the HUD and the player's 3D model are drawn.
+
+**Headless run, no input at all:** `RECOMP_PB_EXEC=1 RECOMP_USB=1 ./build-linux/bin/otogi1` sits on the title screen, which is where the looping attract movie plays — any pad input skips it, so this is the only way to capture that phase (`BOOT_LOG.md`, 2026-10-28).
 
 **Headless run, no pad:** `RECOMP_PB_EXEC=1 RECOMP_USB=1 RECOMP_AUTOPRESS=1 ./build-linux/bin/otogi1` taps START then A on the emulated pad, starts a new game and reaches the start-game stage in about 90-120 s. It renders through the OpenGL back end by default. Add `RECOMP_FB_DUMP=/tmp/f` and `RECOMP_FB_DUMP_FLIPS=/tmp/go` to write a BMP per presented frame while `/tmp/go` exists — the only way to look at a headless run.
+
+**Headless run to a specific screen:** a pad *script* is deterministic where the autopress schedule is not — one 2026-10-27 run sat on the title screen for 175 s because both START taps fell before the title was reading its pad. `RECOMP_PAD_SCRIPT` takes a timeline in milliseconds (`<ms>:<button>[:<hold ms>]`, comma or newline separated, `@file` to read it from a file), e.g. START taps every 1.5 s for 24 s and then an A tap every 1.2 s; that reaches the stage and the pause menu every time (`BOOT_LOG.md`, 2026-10-27).
 
 The OpenGL path needs a display. On a machine with none, run it under `Xvfb`; without one, `RECOMP_PB_GL=0` falls back to the CPU rasteriser, which is roughly ten times slower on the same scene.
 
@@ -73,8 +77,18 @@ instructions use; `AGENTS.md` § 7 has the complete set.
 | `RECOMP_SYNC_IO=1` | Complete `NtReadFile` inline (pre-audio-fix behaviour) |
 | `RECOMP_AUTOPRESS=1` | Tap START then A on the emulated pad (needs `RECOMP_USB`); `RECOMP_AUTOPRESS_PERIOD_MS` sets the A-tap period |
 | `RECOMP_PB_GL=0` | Keep the CPU rasteriser instead of the OpenGL back end |
+| `RECOMP_PAD_SCRIPT=@file` | Drive the pad from a timeline of `<ms>:<button>` entries |
 | `RECOMP_XF_THREADS=<n>` | Vertex-transform workers (default cores-1, max 8) |
 | `RECOMP_DISPATCH_GATE=1` | Serialise DISPATCH_LEVEL and interrupts; set by default for this title |
+| `RECOMP_GL_COMB=<n>` | Print the register-combiner registers, once per distinct configuration, for 2D batches |
+| `RECOMP_GL_STATE=<n>` | Print the render state handed to the back end for a spread of batches |
+| `RECOMP_GL_NO_CULL` / `_NO_DEPTH` / `_NO_BLEND` / `_NO_ALPHA` / `_ALLCHAN` | Force one raster gate open, to bisect a scene that draws too little |
+| `RECOMP_GL_FLAT=1` | Paint every fragment that survives depth, cull and alpha magenta — the difference between "not submitted" and "not painted" |
+| `RECOMP_GL_NO_COMB=1` | Skip the register combiners and modulate stage 0 by the vertex colour, the back end's original pixel stage |
+| `RECOMP_TEX_DUMP=<prefix>` | Write every distinct texture the executor samples as a BMP, through the sampler |
+| `RECOMP_PB_GL_TEXREFRESH=<n>` | Re-upload bound textures every n frames, for a title that rewrites one in place |
+| `RECOMP_XF_FLAT=<n>` | Print the batches that lose every triangle and land on screen, with their inputs and vertex program |
+| `RECOMP_VSH_DUMP=1` | Disassemble each vertex program the title uploads |
 
 On a headless box, run the window under `Xvfb`.
 
