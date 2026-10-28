@@ -85,6 +85,11 @@ instructions use; `AGENTS.md` § 7 has the complete set.
 | `RECOMP_GL_NO_CULL` / `_NO_DEPTH` / `_NO_BLEND` / `_NO_ALPHA` / `_ALLCHAN` | Force one raster gate open, to bisect a scene that draws too little |
 | `RECOMP_GL_FLAT=1` | Paint every fragment that survives depth, cull and alpha magenta — the difference between "not submitted" and "not painted" |
 | `RECOMP_GL_NO_COMB=1` | Skip the register combiners and modulate stage 0 by the vertex colour, the back end's original pixel stage |
+| `RECOMP_GL_COMB3=<n>` / `RECOMP_GL_COMB3_MIN=<n>` | The same combiner record for 3D batches (default: batches of 300+ vertices, i.e. the world) |
+| `RECOMP_CULL_LOG=<n>` | The first n batches that enable culling, with their flip and cull/front values |
+| `RECOMP_GL_FRONT_MIRROR` | Force the opposite front-face convention, to settle it on a capture |
+| `RECOMP_FOG_TRACE=<n>` | The first n fog evaluations: mode, `SET_FOG_PARAMS`, the program's distance and the factor |
+| `RECOMP_FOG_ONE` | Hand every pixel the no-fog factor, to separate a fog unit that never stops fogging from a combiner that reads the register backwards |
 | `RECOMP_TEX_DUMP=<prefix>` | Write every distinct texture the executor samples as a BMP, through the sampler |
 | `RECOMP_PB_GL_TEXREFRESH=<n>` | Re-upload bound textures every n frames, for a title that rewrites one in place |
 | `RECOMP_XF_FLAT=<n>` | Print the batches that lose every triangle and land on screen, with their inputs and vertex program |
