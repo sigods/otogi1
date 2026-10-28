@@ -710,3 +710,50 @@ Template:
   model tears in close-up cutscene shots, and the ground still reads as the
   sky colour on both back ends. Both point at the pixel/vertex-colour the
   lit stage batches are given, not at culling.
+
+## 2026-10-28 — close-up player tore into shards: triangle strips wound every other triangle backwards
+
+- Phase: gameplay / cutscene (OpenGL back end)
+- Symptom: in close shots the player model was covered in black triangular
+  shards and its silhouette was spiky; `RECOMP_GL_NO_CULL=1` made the model
+  whole, which pointed at the cull test rather than at the transform.
+- RVA / target: n/a (primitive decomposition in the executor)
+- Diagnosis: `NV_PRIM_TRIANGLE_STRIP` was decomposed as three consecutive
+  vertices in ascending order. The hardware reverses every other triangle
+  (v0v1v2, v2v1v3, v2v3v4, ...) so that the whole strip faces one way; taken
+  in ascending order, every odd triangle faces the other way. Nothing culls,
+  nothing shows; with culling on, each pass keeps a different half of the
+  triangles and the mesh shreds into exactly the triangles that flipped.
+- Evidence: `RECOMP_CULL_LOG=25` on a stage run shows the model arriving as
+  `prim 6` (strip) batches with culling on, and consecutive batches
+  alternating `face 404` (cull front) and `face 405` (cull back) with the
+  same `front 900` -- the two-pass scheme whose union has to be the whole
+  mesh. `RECOMP_GL_STATE` alone never showed this: it samples the first
+  batches of a frame (the sky), which all run `cull 0`.
+- Fix: `nv2a_pb_exec.c`, both decomposition paths (`raster_batch_program` and
+  the screen-space `raster_indexed`): odd strip triangles are emitted as
+  (i+1, i, i+2). The CPU rasteriser fills either winding, so this only
+  changes what a culling back end keeps.
+- Also added (diagnostics, off by default): `RECOMP_CULL_LOG=<n>` prints the
+  first n batches that enable culling, with flip and cull/front values;
+  `RECOMP_GL_FRONT_MIRROR` forces the opposite front-face convention, to
+  settle that question on a capture; `RECOMP_FOG_ONE` hands every pixel the
+  no-fog factor, to separate a fog unit that never stops fogging from a
+  combiner that reads the fog register the other way round.
+- Result: the close-up model is whole and detailed with culling on. Open: the
+  ground. `RECOMP_GL_FLAT=1` paints the whole lower half of the stage frame
+  magenta, so the ground *is* submitted and passes every raster gate -- it is
+  being shaded to the fog/sky colour, not culled or missing. That is a
+  combiner/fog question now, not geometry.
+
+## 2026-10-28 — the green/yellow/red full-frame panels are the wipe quad
+
+- Phase: gameplay / transitions (OpenGL back end)
+- Symptom: solid green and yellow vertical bars, or a solid red half-frame,
+  over an otherwise correct scene.
+- Diagnosis: the panels move like a wipe -- a full-screen quad the title draws
+  for scene transitions -- and they are flat because the quad samples a
+  texture this back end decodes to a constant. Same family as the movie quad
+  in KNOWN_ISSUES.md: the batch is drawn correctly, the texels are not.
+- Status: open. Next step is the `RECOMP_GL_COMB` record for the wipe batch,
+  which names the texture and format it was handed.
