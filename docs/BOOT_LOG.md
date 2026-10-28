@@ -1028,3 +1028,24 @@ Template:
 - Result: "which quad is white" is now a query with an answer in one log line
   instead of an inference. The box is printed only when `RECOMP_GL_COMB` or
   `_COMB3` is set, so nothing changes for a normal run.
+
+## 2026-10-28 — the texture cache ignored the pitch
+
+- Phase: rendering, all scenes (texture cache)
+- Symptom: none visible on this title's current scenes -- found by reading the
+  cache while chasing the white quad, not by a failed frame. Worth an entry
+  because it is a wrong-answer bug rather than a missing feature.
+- Diagnosis: `GlTex` in `src/nv2a/nv2a_pb_gl.c` carried offset, width, height,
+  format and levels; `tex_find()` matched on exactly those. For a **linear**
+  format the pitch is the row stride the decoder walks (`sample_tex()` does
+  `mem + base + v * t->pitch`), so the same offset and size bound with a
+  different pitch is a different image: the cache returned the first decode
+  and the second bind sampled a stride it was never decoded with. This title
+  binds 640x480 `A8R8G8B8` surfaces at pitch 2560 (`[GLCOMB] tex1 off 80AD5000
+  640x480 fmt 12 pitch 2560`), so the fields are live in its register stream.
+- Fix: `GlTex` carries `pitch`, `tex_find()` matches on it, `tex_upload()`
+  stores it (`xboxrecomp` `4c600d0`, noted in `UPSTREAM.md`).
+- Result: a 235 s stage run before and after the change produces the same
+  frames to the digit (`f00030`: sd 0.136441, R 37.93 / G 42.16 / B 49.83 both
+  runs), which is what a correction with no live collision should look like --
+  the bug was latent here, not the cause of the white quad.
