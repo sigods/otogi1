@@ -757,3 +757,34 @@ Template:
   in KNOWN_ISSUES.md: the batch is drawn correctly, the texels are not.
 - Status: open. Next step is the `RECOMP_GL_COMB` record for the wipe batch,
   which names the texture and format it was handed.
+
+## 2026-10-28 — the fog convention is right; the ground/foliage question is fog strength
+
+- Phase: gameplay (OpenGL back end, register combiners)
+- Symptom: the stage reads as a blue wash; the ground never separates from
+  the sky and the bamboo foliage is pale cyan where the CPU reference is
+  dark green.
+- Diagnosis (settled): the combiner is not reading the fog register the wrong
+  way round. `RECOMP_GL_COMB3` on the stage's big 3D batches shows the final
+  combiner as `final 130C0300/00001C80` -- A = 0x13 (fog.a), B = 0x0C (r0),
+  C = 0x03 (fog.rgb), D = 0 -- i.e. `out = fogcolour*(1-f) + colour*f`, which
+  is the same encoding `nv2a_combiner.c` evaluates and the same one
+  `d3d8_combiners.c` writes at the D3D level (`lerp(fog_color, result, r_fog.a)`).
+  So f = 1 is "no fog", the factor `fog_factor()` hands out when
+  `SET_FOG_ENABLE` is clear is right, and no inversion is needed.
+- What is left is *how much* fog the stage gets: the same record shows
+  `fogf 0.429` on a batch of foliage that is only a few units from the camera,
+  and the fog colour for the stage is 0xFFFFAA78 -- the pale blue the scene is
+  painted with. `RECOMP_GL_NO_COMB=1` (diffuse times stage 0, no fog) shows the
+  foliage and the bark as the dark green they should be, which is what the CPU
+  reference `docs/img/gameplay.png` looks like in the foreground.
+- Status: open, and the next measurement is the fog unit itself: the
+  `SET_FOG_PARAMS` pair and `SET_FOG_MODE` the stage sets, against the oFog
+  distance the vertex program writes, for a batch the record names. The
+  formula in `fog_factor()` follows xemu's vsh, but its two end constants
+  (`-1.0` linear, `-1.5` exp) are the part to verify against a known
+  start/end pair.
+- Not the cause, checked: culling (`RECOMP_GL_FLAT=1` paints the whole lower
+  half, so the ground is submitted and passes every gate); the fog colour
+  unpack (R/B swap matches the CPU path); the front-face mapping (bamboo,
+  ground and player all agree under the pass-through).
