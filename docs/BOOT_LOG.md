@@ -931,3 +931,32 @@ Template:
   combiner paints the band" from "the card is a flat quad".
 - Result: the wipe entry stays open on the *movie* half and is now explicitly
   un-reproducible; the effect-plane band is the live, reproducible symptom.
+
+## 2026-10-28 — the wipe frame caught: half a screen and a pure-white quad
+
+- Phase: area transition (attract loop -> cutscene -> stage)
+- Symptom: `RECOMP_AUTOPRESS=1`, 260 s, gated at 30 s, frame 25 and 31 of 33:
+  the image is split by a hard vertical seam, the left half dark and the right
+  half the blue stage, and a **pure white rectangle** (255,255,255 measured on
+  a 120x120 crop at +510+350) sits over the lower right of the frame with a
+  small purple crescent `#6B5091` inside it and the HUD orb missing. Left/right
+  half means differ by 0.34 (L 0.062, R 0.400). This is the two-strip symptom
+  of the wipe entry, in its own colours: one half of the transition, and a
+  quad drawn white.
+- RVA / target: n/a (a batch, not a lifted function)
+- Diagnosis: white is the documented failure colour of a texture stage on both
+  paths -- `sample_tex()` returns 0 and the combiner takes white, and the GL
+  back end binds `s_white` for a stage that did not bind (`stage_bind` returns
+  0). The crescent is the only part of that quad's texture that arrives, which
+  is the "32-bit read of a half-written surface" note in the issue. It is *not*
+  a decode refusal: `[PBGL] ... will not decode` is absent from the run
+  (`grep -c` = 0), and `RECOMP_TEX_DUMP` never writes a texture that is mostly
+  white, so the stage is not bound at all for that batch rather than bound and
+  undecodable.
+- Fix: none yet -- this entry is the capture the issue was missing. The next
+  step is `RECOMP_GL_COMB=<n>` on this exact run and reading the batch whose
+  `stpar` has stage 0 off (the record prints `(none)` for a stage with no
+  texture), then following that batch's `SET_TEXTURE_*` methods back to the
+  register the executor and the GL path disagree about.
+- Result: the wipe/movie entry now has a reproducible stage frame instead of a
+  description, in `RECOMP_AUTOPRESS` runs, with the exact defect signature.
