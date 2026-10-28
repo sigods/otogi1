@@ -898,3 +898,36 @@ Template:
   surfaces KNOWN_ISSUES names were never sampled in that window, so the movie
   did not draw there at all. Whoever continues needs a capture that actually
   contains a strip frame before anything else can be measured.
+
+## 2026-10-28 — the two-strip movie frame did not reproduce; the effect band does
+
+- Phase: cutscene / stage (the wipe and movie investigation)
+- Symptom: three captures were taken to reproduce the two full-height strips,
+  one green and one yellow. None contains a two-band frame:
+  (a) a 210 s `RECOMP_PAD_SCRIPT` run gated at 42 s, 28 frames, 42-210 s;
+  (b) a 320 s run gated at 150 s with the pad script truncated after its 160 s
+      tap so the pre-stage cutscene is not skipped, 29 frames, 150-320 s;
+  (c) a 260 s `RECOMP_AUTOPRESS=1` run gated at 30 s, 11 frames.
+  What all three do contain is the *black* movie: `sd` 0.0127 at R 0.14 /
+  G 2.97 / B 6.16, and the YUY2 (0x24) and `LIN_X8R8G8B8` (0x1E) surfaces the
+  issue names are never sampled in any of them (`RECOMP_TEX_DUMP`, 64 distinct
+  textures, none of either format), so the pre-stage cutscene never draws in
+  these runs at all.
+- RVA / target: n/a
+- Diagnosis: the strips cannot be fixed or verified without a capture that
+  contains one. Nothing in the three runs reaches that batch.
+- What the same runs *do* show, and it is the effect-plane symptom rather than
+  the movie: a flat **olive full-height band** across the bamboo (stage frame
+  `f00026`, lower third), i.e. a soft light-shaft card painted one colour. The
+  batches that draw the full-screen effects are in the combiner record:
+  six vertices, `stpar 000004C1`, `final 0000000E/00001C80`, and three stages --
+  `tex0 81453000 256x256 fmt 28 pitch 2560` (G8B8), `tex1 80AD5000 640x480
+  fmt 12 pitch 2560` (the surface that is uniformly 0x80808080 on both paths,
+  entry above) and `tex2 81473000 256x256 fmt 19`. The G8B8 mask itself decodes
+  to concentric rings, which may be what it is authored as (a distortion
+  mask), so the band is not proof of a decode fault -- but the three-stage
+  full-screen batch is the one to instrument next.
+- Fix: none this entry. `RECOMP_GL_NO_COMB=1` on a stage run separates "the
+  combiner paints the band" from "the card is a flat quad".
+- Result: the wipe entry stays open on the *movie* half and is now explicitly
+  un-reproducible; the effect-plane band is the live, reproducible symptom.
