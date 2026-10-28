@@ -960,3 +960,28 @@ Template:
   register the executor and the GL path disagree about.
 - Result: the wipe/movie entry now has a reproducible stage frame instead of a
   description, in `RECOMP_AUTOPRESS` runs, with the exact defect signature.
+
+## 2026-10-28 — the wipe quad's combiner state, caught in the log
+
+- Phase: area transition (same `RECOMP_AUTOPRESS` window as the entry above)
+- Symptom: the transition's untextured quad identified. `RECOMP_GL_COMB=60` on
+  the run that produces the seam records exactly one two-triangle screen quad
+  with **no stage-0 texture at all**:
+  `[GLCOMB] batch n 6 col 80000000 spec FFFFFFFF uv 0 0 fogf 1 stpar 00000000
+  ctl 00011102 final 0000000C/00001C80 f0 00000000 f1 00000000 fog FFFFAA78`
+  followed by `tex0 (none)`. `col 80000000` is black at 50% alpha;
+  `stpar 00000000` says every texture stage is off; `final 0000000C/00001C80`
+  is A = r0 (0x0C), B/C/D = 0, so the pixel stage passes r0 straight out and
+  neither the fog colour it carries (`0xFFFFAA78`) nor a texture can reach the
+  pixel. The quad is therefore drawn as a flat black 50% veil by construction.
+- RVA / target: n/a
+- Diagnosis: the question is no longer "which texture decodes to a constant"
+  but "why is `SET_TEXTURE_FORMAT`/`SET_TEXTURE_CONTROL0` for this draw's
+  stage 0 zero when the title draws a transition quad". `stpar` is the
+  executor's own record of the stage-enable bits, so the registers are zero at
+  submit time on our side -- the title either really does fade with a plain
+  veil, or it sets those bits with a method the executor does not mirror.
+- Fix: none. This is the exact register state to work from; a breakpoint on
+  `record_tex_reg()` during the transition shows whether the methods arrive.
+- Result: the transition quad is now identified in one log line, which is what
+  the wipe entry has been missing; nothing was changed in the renderer.
