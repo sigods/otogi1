@@ -871,3 +871,30 @@ Template:
 - Result: `docs/KNOWN_ISSUES.md` gains an entry saying so, and `ROADMAP.md`
   stops naming the wipe. The movie's two green/yellow strips are a different
   symptom on a different surface and stay open.
+
+## 2026-10-28 — the screen-sized surface is constant on both back ends
+
+- Phase: gameplay / cutscene (the wipe and movie investigation)
+- Symptom: a 640x480 `A8R8G8B8` (0x12) surface at `0x80AD5000` is bound as a
+  texture by up to 3166 batches a frame (`[TEXUSE] 0x80AD5000 640x480 fmt
+  0x12 lin: 3166 batches`) and `RECOMP_TEX_DUMP` writes it out uniform:
+  `t08_80AD5000_fmt12.bmp`, mean = sd = 0.501961, i.e. every texel 0x80808080.
+  A screen-sized surface sampled that often and reading as one flat colour is
+  exactly the shape of the "wipe quad's texels decode to a constant" note.
+- RVA / target: n/a (texture content, not a lifted function)
+- Diagnosis: not ours. The same dump under `RECOMP_PB_GL=0` produces the byte
+  identical picture -- same file name, same address, mean 0.501961, sd 0. So
+  the CPU rasteriser, which is the reference and which writes its surfaces into
+  guest memory directly, sees the same constant. The title's own content there
+  is 0x80808080; the GL texture cache (`tex_find`/`tex_upload` in
+  `src/nv2a/nv2a_pb_gl.c`) is not holding stale data for it, and no readback of
+  a render target is missing.
+- Fix: none. A candidate cause removed, not a bug found.
+- Result: this lead is closed. Two things are still open on the movie: the
+  strips did not reproduce in this capture (a 210 s `RECOMP_PAD_SCRIPT` run
+  gated at 42 s shows the black attract frames -- `sd` 0.0127 at R 0.14 /
+  G 2.97 / B 6.16 -- and then a clean stage, no two-band frame anywhere in the
+  28 dumped frames), and the 640x480 YUY2 (0x24) and `LIN_X8R8G8B8` (0x1E)
+  surfaces KNOWN_ISSUES names were never sampled in that window, so the movie
+  did not draw there at all. Whoever continues needs a capture that actually
+  contains a strip frame before anything else can be measured.

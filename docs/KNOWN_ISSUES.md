@@ -76,6 +76,18 @@ different fault and the first two fixes only looked like each other.
   vertices or the texture coordinates handed to GL for that batch are not the
   ones the CPU path uses -- the colours are a 32-bit read of a half-written
   surface, not a blend error.
+- **Measured on 2026-10-28, and it narrowed things:** a 210 s
+  `RECOMP_PAD_SCRIPT` run gated at 42 s caught the black attract frames (`sd`
+  0.0127 at R 0.14 / G 2.97 / B 6.16) but no two-band frame in its 28 dumped
+  frames, and the 640x480 YUY2 / `LIN_X8R8G8B8` surfaces above were never
+  sampled in that window -- so the movie did not draw there and nothing about
+  the strips can be measured until a capture contains one. What *was* ruled out
+  is the stale-cache half: the one screen-sized surface that is sampled heavily
+  (`0x80AD5000`, 640x480 `A8R8G8B8`, up to 3166 batches a frame) dumps uniform
+  `0x80808080` under `RECOMP_TEX_DUMP` **on both back ends**, byte for byte, so
+  the title's own content there is a constant and the GL cache is not holding
+  an old frame. `BOOT_LOG.md`, 2026-10-28, "the screen-sized surface is
+  constant on both back ends".
 - **Status:** open, not scheduled. It is the title's only movie, so it can be
   skipped for gameplay work (the START taps a pad script issues do exactly
   that); the pre-stage movie is skipped the same way.
