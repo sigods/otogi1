@@ -2,13 +2,117 @@
 
 One entry per open blocker. Each records the symptom as it appears in a log, the evidence behind it, the current status, and where a fix belongs. Milestone status is in [`../ROADMAP.md`](../ROADMAP.md); the raw history is in [`BOOT_LOG.md`](BOOT_LOG.md).
 
-## The stage world is not drawn
+## The stage's lit geometry is drawn inside-out and too dark
 
-- **Symptom:** on the start-game stage the player's 3D model, the HUD and the bamboo are drawn; the rest of the stage world is not. Large flat polygons show where terrain and props should be. Reported from repeated maintainer runs and reproduced headlessly on 2026-10-26 (see `BOOT_LOG.md`).
-- **Evidence:** `docs/img/start-stage.png` (CPU rasteriser) and the 2026-10-26 capture through the OpenGL back end. The 2026-10-26 census on the stage: 2.68M draws, 401M vertices, 3.7k textured fixed-function batches, and 26.9M triangles dropped behind the eye. Depth, culling and texture binding all execute (the character's own textures sample correctly), so this is not "the back end drew nothing": it never was, before the missing `glUseProgram` was found on 2026-10-26.
-- **Status:** open. Both rasterisers (CPU and GL) show the same missing world from the same decoded batches, so the fault is in what the executor builds, not in either rasteriser.
-- **Next lead:** the batches that should be the world are being drawn but carry geometry that collapses — the census counts 26.9M "triangles dropped behind the eye" out of ~400M vertices. Check the near-plane clip in `raster_xf_clipped` (a w that is zero or negative after the vertex program), and the register combiner path: the world's materials go through `nv2a_rc_eval` on the CPU and through a diffuse-times-texture approximation in GL, which would not hide the geometry either. The vertex-format list on the stage adds `v1:6/1` (packed 11:11:10 with size 1) and `v5:5/2` (signed short), which the fetch path handles but no healthy scene was compared against.
-- **Where the fix belongs:** the toolkit's push-buffer executor (`src/kernel/nv2a_pb_exec.c`), most likely the program-batch clip, then the back end if the combiner approximation turns out to matter.
+- **Symptom:** on the start-game stage the bamboo trunks read as hollow black
+  wedges with a green rim, the player model as a dark inside-out silhouette,
+  and the ground is the same blue as the sky. In close-up cutscene shots the
+  player tears into spiky triangles instead of a smooth model. The HUD, the
+  leaves, the haze planes and the light shafts draw.
+- **Fixed on 2026-10-28 — the inside-out half:** the OpenGL back end mirrored
+  `SET_FRONT_FACE` in `apply_state()`; mirrored, every closed mesh kept its
+  back faces (the inside). It now maps 0x0900/0x0901 straight through, and
+  `RECOMP_GL_NO_CULL=1`/the fixed build both draw the trunks solid. See
+  `BOOT_LOG.md`, 2026-10-28.
+- **Still open — the dark half:** the ground and the shaded side of the
+  trunks carry the fog/sky colour, and the close-up player tears. Evidence:
+  culling off changes neither the ground nor the tearing; `RECOMP_GL_FLAT=1`
+  paints the whole scene, so the geometry is submitted and passes depth, cull
+  and alpha; `RECOMP_GL_NO_COMB=1` makes the stage darker, not brighter, so
+  the combiner is not the only stage in play. `RECOMP_VSH_ALWAYS=1` is not
+  the answer (1.7M draw calls, flips stop).
+- **Ruled out:** an unimplemented stage mode (`[PBGL] stage modes` counts 270
+  mode-6 uses against 3.5M of 0/1/4), the G8B8 decode below, and culling
+  (above).
+- **Status:** open. Next lead: the per-vertex colour and fog factor the lit
+  batches hand the pixel stage, on **both** back ends — the CPU rasteriser
+  misses the ground too, so this is executor-side, not GL-side. `RECOMP_VSH_DUMP`
+  over a stage run is the cheapest next capture (the lighting programs are
+  the ones with `lit`/`dp3` and the c[64+] constants).
+- **Where the fix belongs:** the executor's vertex program interpreter or the
+  per-vertex inputs it builds (`src/kernel/nv2a_pb_exec.c`,
+  `src/kernel/nv2a_vsh_interp.c`), not the OpenGL back end's state.
+
+## Closed on 2026-10-28 — the effect planes drew as hard-edged wedges
+
+- **Symptom (history):** on the start-game stage the light shafts and cloud
+  cards rendered as translucent wedges with visible straight edges, where the
+  CPU rasteriser's captures of the same stage show soft haze.
+- **Cause:** the executor's texture sampler had no case for `D3DFMT_G8B8`
+  (0x28) and no linear twin for it, so the 256x256 effect texture failed to
+  decode and the OpenGL back end bound white — an opaque quad where the
+  title's combiner wants that texel's own alpha. `RECOMP_TEX_DUMP` and the
+  `[PBGL] … will not decode` line named it.
+- **Fix:** `sample_tex()` and `linear_twin()` in `src/kernel/nv2a_pb_exec.c`.
+- **Verification:** a full stage run no longer logs a texture that will not
+  decode.
+
+## The title's movie draws black, or as two coloured strips
+
+- **Symptom:** the title's only XMV shows nothing usable on the OpenGL back
+  end. The looping attract movie is black; the pre-stage Raikoh cutscene draws
+  its movie quad as **two full-height strips, one pure green and one pure
+  yellow**, over the bamboo. The CPU rasteriser plays both correctly (no black
+  frame, no strips), and that is the current differential.
+- **Evidence:** the title opens the file and reads it throughout; it binds a
+  640x480 YUY2 texture (`0x24`) and a 640x480 `LIN_X8R8G8B8` (`0x1E`) one, and
+  decodes each frame into the same surface. `RECOMP_GL_FLAT` over the attract
+  period is a uniform magenta field, so the full-screen quad is submitted and
+  passes every gate, and its painted answer is black. `TEXUSE` records the
+  640x480 linear texture being sampled by hundreds of batches per frame
+  (`BOOT_LOG.md`, 2026-10-28). The strips appear at t≈45-50 s and again at
+  ≈190 s of a `RECOMP_PAD_SCRIPT` run, i.e. exactly where the pre-stage movie
+  plays; the same build with `RECOMP_PB_GL=0` draws that cutscene correctly
+  (maintainer report, 2026-10-28).
+- **Two separate faults, most likely:** (1) the pixels: the CPU sampler
+  re-decodes the texture from guest memory on every draw, while the GL back
+  end caches it by offset/size/format and uploads once, so an in-place movie
+  surface stays black/stale (`RECOMP_PB_GL_TEXREFRESH` did not lift the attract
+  movie, which suggests the refresh path misses this bind, not that the cache
+  is innocent); (2) the quad: green/yellow strips instead of a frame mean the
+  vertices or the texture coordinates handed to GL for that batch are not the
+  ones the CPU path uses -- the colours are a 32-bit read of a half-written
+  surface, not a blend error.
+- **Status:** open, not scheduled. It is the title's only movie, so it can be
+  skipped for gameplay work (the START taps a pad script issues do exactly
+  that); the pre-stage movie is skipped the same way.
+- **Where the fix belongs:** the OpenGL back end's texture cache and the
+  screen-space batch path (`src/nv2a/nv2a_pb_gl.c`), or the executor's texture
+  state if the batch is handed the wrong buffer. A dirty-page hook on guest
+  writes to the texture's range is the general fix for (1).
+
+## A depth patch on the title screen
+
+- **Symptom:** a rectangular region over the "PRESS START" area shows a
+  polygon pattern that is not part of the artwork, over the falling petals.
+- **Evidence:** maintainer report, 2026-10-28, on both the CPU rasteriser and
+  the OpenGL back end. `RECOMP_GL_FLAT` draws the title screen as pure
+  magenta — every pixel of it is geometry that passes every gate — so the
+  patch is depth, not missing or extra geometry.
+- **Status:** open, not investigated. `RECOMP_GL_NO_DEPTH=1` bisects it, and
+  `RECOMP_GL_STATE=<n>` prints the depth state of the batches involved.
+- **Where the fix belongs:** unknown until the depth state of the petals'
+  pass and of the pass it occludes have been printed.
+
+## Closed on 2026-10-27 — the stage world was not drawn
+
+- **Symptom (history):** on the start-game stage the player's 3D model, the HUD
+  and the bamboo were drawn; the rest of the stage world was not. Large flat
+  polygons showed where terrain and props should be. Recorded from maintainer
+  runs on 2026-10-24/26.
+- **Cause:** two separate gaps, both since closed. The batches were reaching the
+  rasteriser and being dropped, and the reason recorded here ("geometry that
+  collapses") turned out on 2026-10-27 to be the title's own culling: 6771 of
+  6776 all-dropped batches lose every triangle to the eye/near-plane test, the
+  position buffers hold real data, and the few on-screen ones carry a
+  `SET_VERTEX_DATA_ARRAY_FORMAT` of stride 0 — a deliberate no-op strip (see
+  `BOOT_LOG.md`, 2026-10-27). What actually hid the world was the pixel stage:
+  the OpenGL back end drew `diffuse * stage 0` where the title's register
+  combiners say otherwise, and the back end now evaluates them.
+- **Verification:** `docs/img/gl-stage.png` — bamboo grove, ground haze, light
+  shafts, HUD and the player's model, from a headless `RECOMP_PAD_SCRIPT` run
+  through the OpenGL back end.
+- **Residual:** the effect planes' hard edges, above.
 
 ## Closed on 2026-10-26 — the input stall
 

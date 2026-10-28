@@ -528,3 +528,185 @@ Template:
   Menus and the attract loop: 90-120 fps. Intro cutscene: 25-29 fps.
   `[GPU] draws 30`-style stalls are gone; the title sustains a frame loop.
 - Next blocker: the stage world is still not drawn, see `KNOWN_ISSUES.md`.
+
+## 2026-10-27 — the register combiners reach the OpenGL back end
+
+- Phase: menus (pause menu), gameplay (start-game stage). Build: this tree,
+  `build-linux`, captured with `RECOMP_FB_DUMP` from a `RECOMP_PAD_SCRIPT` run.
+- Symptom: through the OpenGL back end every text run in the pause menu had a
+  black rectangle behind it — "Restart", "Back to Main Menu", "Retire", the
+  description line, the OK/BACK labels. The same menu through the CPU
+  rasteriser (`docs/img/pause-menu.png`) drew the text straight onto the panel.
+- Diagnosis: other. `nv2a_backend.h` said the back end's pixel stage was
+  "diffuse times stage 0" and that register-combiner state was not passed on.
+  The title's pixel stage *is* the register combiner, and `RECOMP_GL_COMB`
+  dumps show the draws are not that product: stage 0 reads `T0` and `v0`, the
+  final combiner takes `R0`, and several batches take their colour from the
+  alpha channel. The CPU rasteriser has evaluated these registers since
+  `nv2a_combiner.c` landed, which is why the two rasterisers disagreed on the
+  same batches.
+- Fix, all in the toolkit:
+  - `nv2a_backend.h`: `Nv2aBatch` carries the combiner (the same `Nv2aCombiner`
+    the CPU path evaluates), all four stage textures and the fog colour;
+    `Nv2aVertex` carries colour 1, the fog factor and each stage's texture
+    coordinate, so the shader has the inputs `nv2a_rc_eval` has.
+  - `nv2a_pb_exec.c`: `backend_flush()` fills them from the live state and
+    `backend_from_xf()` fills the per-vertex half.
+  - `nv2a_pb_gl.c`: the fragment shader evaluates the combiners — the same
+    arithmetic on the same registers, decoded to uniforms once per batch. The
+    stage modes it does not implement (cubemap, clip plane, bump, dot product)
+    leave the batch on the old modulate rather than on a wrong result.
+- Result: the pause menu renders with no black boxes behind its text
+  (`docs/img/gl-pause-menu.png`), and the stage keeps its bamboo, ground haze,
+  light shafts, HUD and player model (`docs/img/gl-stage.png`).
+- Still open: effect planes (light shafts, cloud cards) draw as hard-edged
+  translucent wedges where the CPU captures show soft haze. Not investigated;
+  `KNOWN_ISSUES.md` records it.
+
+## 2026-10-27 — "collapsed geometry" is the title culling, not a lost transform
+
+- Phase: menus and stage. Build: this tree, `RECOMP_XF_FLAT` and the flat-batch
+  census (`[GPU] flat batches`).
+- Question: `KNOWN_ISSUES.md` recorded the stage world as missing because its
+  batches "carry geometry that collapses". The census now counts exactly those
+  batches — batches that reach the rasteriser and lose every triangle.
+- Evidence, stage run: 6776 of 316043 batches lost every triangle (2.1%).
+  6771 of them lost them to the eye/near-plane test — the title's own culling
+  of geometry behind the camera. Five lost them to zero-area triangles.
+  Drilling into the on-screen ones (`RECOMP_XF_FLAT` reports only those now):
+  the position buffer holds real data (`-65 0 65`, and different values at
+  different indices), the fetch succeeds, and the batch's
+  `SET_VERTEX_DATA_ARRAY_FORMAT` carries **stride 0** — every index reads the
+  same element, so the title is drawing a deliberate no-op strip. D3D8 hides
+  geometry that way; the hardware would collapse it identically.
+- Fix: none needed. The diagnostics stay: `RECOMP_XF_FLAT=<n>` (with
+  `RECOMP_XF_FLAT_AT=<batch>`) prints the attributes, the program's inputs, the
+  disassembly of the program that collapsed them, and the first outputs.
+- Result: the transform was never losing the world. The world draws; what it
+  drew wrongly was the pixel stage (entry above).
+
+## 2026-10-28 — the missing polygons are painted, not missing
+
+- Phase: start-game stage and the title screen. Build: this tree,
+  `build-linux`, headless `RECOMP_PAD_SCRIPT` runs with `RECOMP_FB_DUMP`.
+- Symptom: polygons look missing on the player model and the bamboo, most
+  visibly through the OpenGL back end.
+- Diagnosis: `RECOMP_GL_FLAT=1` paints every surviving fragment one colour
+  (magenta) after depth, cull and alpha have all been applied. With it the
+  stage draws **all** of it: the bamboo stalks, the canopy, the ground, and
+  the player model standing on the path, in one solid magenta silhouette
+  (`/dev/shm/gF`, same pad script and report interval as the normal run, so
+  the frames line up). The title screen is likewise pure magenta, petals
+  included.
+- Conclusion: no geometry is dropped, culled or depth-rejected. What is
+  missing is the pixel stage's answer for those batches -- they are painted
+  with the background's colour. "Polygons missing" is therefore a shading
+  defect, and the next lead is the vertex colour and texel inputs the
+  combiner is given, not the transform or the primitive assembly.
+- Ruled out on the way, so it is not retried:
+  - The register combiner's fallback. `RECOMP_GL_NO_COMB` (the back end's
+    original modulate, no combiner) makes the stage *darker* -- mean pixel
+    11205 against 18955 with the combiners on -- so the combiners are not
+    what blacks the scene out.
+  - An unimplemented stage mode. The new `[PBGL] stage modes` census counts
+    every `SET_SHADER_STAGE_PROGRAM` slot per run: 0 x2242885, 1 x1286954,
+    4 x284427, 6 x270 by frame 6000. Only mode 6 is outside the set the back
+    end used to refuse, and it accounts for 270 stage uses in six hundred
+    thousand.
+  - The G8B8 texture (below), which was real but only touched the effect
+    planes.
+- Fix in this build, all in the toolkit, all matching what the CPU rasteriser
+  already did (`nv2a_pb_exec.c`'s `rc_stage_fetch`):
+  - `nv2a_pb_gl.c`'s `rc_stage()` now implements the whole mode table --
+    none, projected 2D, cubemap as a 2D lookup, passthrough, clip plane --
+    and returns zero for the bump-env and dot-product modes. The clip-plane
+    stage discards the fragment, which is what killing the pixel means.
+  - `rc_upload()` no longer refuses a batch whose stage uses a mode the
+    shader used to lack. Refusing it disabled the combiner for that batch
+    and painted it `v0` times a texel, which is black for a lit model.
+  - `Nv2aBatch` carries `clip_plane_mode`, filled from the executor's state.
+- Diagnostics added: `[PBGL] stage modes` (once per run at frames 300, 3000
+  and 6000), `RECOMP_GL_NO_COMB`, and the PVIDEO bank probe below.
+
+## 2026-10-28 — G8B8 textures did not decode
+
+- Phase: start-game stage, the light shafts and cloud cards.
+- Symptom: `[PBGL] texture 81453000 256x256 fmt 28 will not decode; drawn
+  untextured`, four times per run -- the GL back end bound white for that
+  texture, so the effect planes came out as opaque hard-edged quads instead
+  of the soft alpha the title's combiner asks for (the open item in
+  `KNOWN_ISSUES.md` since 2026-10-27).
+- Cause: `sample_tex()` had no case for `D3DFMT_G8B8` (0x28), and
+  `linear_twin()` did not map it to its linear twin `D3DFMT_LIN_G8B8` (0x17),
+  so a swizzled G8B8 texture fell through to the unsupported-format path.
+  G8B8 is two 8-bit channels, green in the high byte and blue in the low,
+  with no alpha -- the name reads high-to-low like every other one in that
+  switch.
+- Fix: both cases, in `src/kernel/nv2a_pb_exec.c`. `will not decode` is now
+  empty for a full stage run.
+
+## 2026-10-28 — the attract movie: no PVIDEO, and a black quad
+
+- Phase: the looping `d:\movie\otogi_us_promo.xmv` attract movie, which the
+  title starts about 6 s after boot and plays until a button is pressed.
+  It needs a run with **no** pad input: the START taps every 1.5 s that the
+  stage runs use skip it.
+- What is established:
+  - The title opens the file (both opens succeed), reads it in ~160 KB
+    chunks for the whole period, and allocates a 1200 KB contiguous buffer
+    -- 640x480x4, `0x818E9000`. `RECOMP_TEX_DUMP` shows it binding two
+    640x480 textures: `81853000` fmt 0x24 (YUY2) and `818E9000` fmt 0x1E
+    (LIN_X8R8G8B8). Both read back all-zero at first bind.
+  - **PVIDEO is never programmed.** The new probe in `pvideo_write()` prints
+    the first four `NV_PVIDEO_BUFFER` writes with a bank pending; a full
+    attract run prints none. So the overlay is not how this title shows its
+    movie, and the fact that `fb_present.c` composites PVIDEO only in the
+    Win32 presenter does not bear on it.
+  - `RECOMP_GL_FLAT` over the same period is a **uniform magenta field**
+    (mean 43690, the exact value of pure magenta, for every frame): the
+    movie is drawn as a full-screen quad that reaches the rasteriser and
+    passes every gate. With the combiners on, that same quad paints pure
+    black.
+  - `RECOMP_PB_GL_TEXREFRESH=15` does not lift it, so it is not the texture
+    cache holding the first (undecoded) copy.
+- Status: open. The quad is submitted and its answer is black; the CPU
+  rasteriser samples the same texture live and shows the frame, missing one
+  triangle at the bottom. Both halves point at the texture the batch is
+  handed, and the next step is the `RECOMP_GL_COMB` record for that batch
+  (it is a 2D batch, so the dump covers it -- it just has not been caught
+  yet, because `RECOMP_GL_COMB=8` spends its budget on the boot screens).
+- Where the fix belongs: the OpenGL back end's texture path
+  (`src/nv2a/nv2a_pb_gl.c`), if the decode is wrong, or the executor's
+  texture state if the batch is handed the wrong buffer.
+
+## 2026-10-28 — stage 3D: the back end culled the wrong side of every mesh
+
+- Phase: gameplay (start-game stage, OpenGL back end)
+- Symptom: bamboo trunks drew as hollow black wedges with only a green rim,
+  the player model was a black inside-out silhouette, and the ground was not
+  visible at all. The CPU rasteriser drew the same stage differently again
+  (less geometry), so neither path was the reference.
+- RVA / target: n/a (render state, not a lifted function)
+- Diagnosis: the OpenGL back end mirrored `SET_FRONT_FACE` in `apply_state()`
+  on the theory that the vertex shader's y flip had to be paid back. It does
+  not: the flip makes window-space winding match the NV2A's screen-space one,
+  so the title's own name carries over. Mirrored, every closed mesh kept its
+  back faces, i.e. the *inside*, which is what the black wedges were.
+- Evidence: `RECOMP_GL_NO_CULL=1` on the same cutscene (`3fps` capture,
+  `/tmp` scrub) drew the trunks solid and green and removed every black
+  wedge; with the mapping corrected the same is true with culling on.
+  `RECOMP_GL_STATE` on a 400-batch sample shows the title mostly runs with
+  culling disabled (`cull 0`), so the mistake only showed on the meshes that
+  do enable it, which is why menus looked right and the grove did not.
+- Fix: `src/nv2a/nv2a_pb_gl.c`, `apply_state()`: `glFrontFace()` maps
+  0x0900/0x0901 straight through instead of swapping them.
+- Ruled out in the same session (do not retry): running the loaded vertex
+  program for fixed-function batches (`RECOMP_VSH_ALWAYS=1`) — the title then
+  issues 1.7M draw calls and stops flipping; the movie strips are not 3D
+  geometry but the title's XMV quad (see `KNOWN_ISSUES.md`); the missing
+  ground is not culled geometry — `RECOMP_GL_NO_CULL=1` leaves it just as
+  invisible.
+- Result: trunks solid, player no longer inside-out. Still open: the player
+  model tears in close-up cutscene shots, and the ground still reads as the
+  sky colour on both back ends. Both point at the pixel/vertex-colour the
+  lit stage batches are given, not at culling.

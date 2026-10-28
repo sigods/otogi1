@@ -9,7 +9,7 @@
 | M2 — Hardware init | D3D device + DirectSound + input created | ☑  | `README.md` § Status |
 | M3 — Asset load | Reads data from `game/` without SKIP-READ | ☑ | `README.md` § Status, File I/O — all XBE sections, assets and packed archives read |
 | M4 — Menus | Title screen renders | ☑ | `README.md` § Screens — title, New Game, save creation and loading, main menu and pause menu reached in maintainer runs |
-| M5 — Gameplay | Playable level at stable framerate | ◐ | player's 3D model drawn on the start-game stage; stage world not drawn (only bamboo visible); no playable level. `docs/KNOWN_ISSUES.md` § The stage world is not drawn |
+| M5 — Gameplay | Playable level at stable framerate | ◐ | the start-game stage draws: bamboo grove, ground haze, light shafts, HUD and the player's 3D model, through the OpenGL back end at ~26 fps on the RX 570. The stage's closed meshes are no longer drawn inside-out (front-face mapping fixed, `BOOT_LOG.md` 2026-10-28); what is still wrong is the lit geometry's colour — the ground and the shaded side of the trunks carry the fog colour, and the close-up player tears — plus the movie, all in `docs/KNOWN_ISSUES.md`. Not playable yet: no combat or level progression recorded |
 | M6 — Polish | Audio, save/load, rendering fixes, widescreen | ◐ | BGM works; DSP effects not emulated; create and load work in maintainer runs; widescreen not recorded |
 
 ## Non-goals
