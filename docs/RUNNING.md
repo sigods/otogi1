@@ -80,7 +80,7 @@ instructions use; `AGENTS.md` § 7 has the complete set.
 | `RECOMP_PAD_SCRIPT=@file` | Drive the pad from a timeline of `<ms>:<button>` entries |
 | `RECOMP_XF_THREADS=<n>` | Vertex-transform workers (default cores-1, max 8) |
 | `RECOMP_DISPATCH_GATE=1` | Serialise DISPATCH_LEVEL and interrupts; set by default for this title |
-| `RECOMP_GL_COMB=<n>` | Print the register-combiner registers, once per distinct configuration, for 2D batches |
+| `RECOMP_GL_COMB=<n>` | Print the register-combiner registers, once per distinct configuration **and screen position**, for 2D batches; each record ends with the batch's screen box, `box x0..x1 y0..y1` |
 | `RECOMP_GL_STATE=<n>` | Print the render state handed to the back end for a spread of batches |
 | `RECOMP_GL_NO_CULL` / `_NO_DEPTH` / `_NO_BLEND` / `_NO_ALPHA` / `_ALLCHAN` | Force one raster gate open, to bisect a scene that draws too little |
 | `RECOMP_GL_FLAT=1` | Paint every fragment that survives depth, cull and alpha magenta — the difference between "not submitted" and "not painted" |

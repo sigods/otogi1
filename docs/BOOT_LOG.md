@@ -1008,3 +1008,23 @@ Template:
   the next run gets a camera that looks at the ground at all.
 - Result: ground assessment is now possible from a capture instead of blocked;
   the frame to start from is `/tmp/gGND/f00019.bmp` in this session's scratch.
+
+## 2026-10-28 — the white quad is not any of the recorded six-vertex sprites
+
+- Phase: area transition
+- Symptom: with the combiner record now carrying each batch's screen box, the
+  transition's pure-white rectangle -- measured at **136x136 at +499+309** on
+  `f00030` -- can be looked up. No record covers it. The 2D records nearest it
+  are `box 411..626 330..379` (a 215x49 strip) and `box 450..575 386..445`
+  (125x59), and neither is 136x136 nor sits at 499,309; the full-screen ones
+  (`1..641 1..481`) are the fade quads.
+- Diagnosis: the white rectangle is not a six-vertex screen-space sprite, so it
+  is either a vertex-program batch (drawn through the 3D path, which the same
+  record covers only with `RECOMP_GL_COMB3`) or several sprites overpainting
+  each other. That is the next lookup: `RECOMP_GL_COMB3` with a low
+  `RECOMP_GL_COMB3_MIN` on the same run, matching the box.
+- Fix: none; the diagnostic that makes the lookup possible was added
+  (`xboxrecomp` `62e72d1`, `comb_report()` prints and hashes the box).
+- Result: "which quad is white" is now a query with an answer in one log line
+  instead of an inference. The box is printed only when `RECOMP_GL_COMB` or
+  `_COMB3` is set, so nothing changes for a normal run.
