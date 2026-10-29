@@ -1331,6 +1331,25 @@ Template:
   not at a missing or untransformed mesh. The next measurement is the
   `RECOMP_XF_BAD` / `[GLST]` record of the program batches whose transformed z
   is out of range on the stage, matched against a ground pixel.
+- **2026-10-29, the transform measured.** `RECOMP_XF_BAD` (extended to flag
+  out-of-range `z`, and to print the MVP rows `c[112..115]` plus the fetched
+  `v0` *and* the output for the vertices either side of the bad one) settles
+  it. The terrain inputs are **smooth, real terrain** — consecutive vertices
+  differ by ~100 model units: `(4021,-18221,-2866)` -> `(3947,-18114,-2942)` ->
+  `(3727,-16790,-961)` — so it is **not** a position-fetch bug and **not**
+  stacking at the input. What goes wrong is the transform's `w`: it
+  **straddles the eye plane**, swinging from `-1822` (behind the eye) to `+37`
+  (just in front) between adjacent vertices. At `w` near zero the perspective
+  divide explodes (screen `x` reaches 311912) and `z` lands past the far plane
+  (1.77e7 > 1.677e7), so those triangles fail the depth test and are dropped
+  (4,054,005 "dropped behind the eye" in one run). Under normal rendering the
+  ground is therefore invisible; `RECOMP_GL_NO_BLEND` / `_FLAT` reveal only the
+  mispositioned slivers the near-plane clip lets through. The MVP rows are
+  present and plausible (small rotation + translation), so the matrix is not
+  missing — the open question is whether the near-plane clipper in
+  `raster_xf_clipped` handles the eye-plane straddle the way the hardware does.
+  Next: A/B `RECOMP_CLIP_NEAR_Z=0` against the default on a ground-facing
+  frame.
 - Also closed in this pass: the D3D8→D3D11 question. This title statically
   links XDK D3D and never calls the toolkit's D3D8 layer (the layer is for a
   title that calls the API; `docs/technical/pushbuffer-executor.md` says so).

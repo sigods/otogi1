@@ -28,12 +28,21 @@ surface.
   no-op strips (the 2026-10-27 census), not terrain waiting on a transform. So
   the 68,601 "skipped as not screen-space" batches in a 150 s stage run are
   those strips; do not chase a composite matrix for them.
-- **Next measurements:** (1) the depth of the terrain. `RECOMP_GL_PROBE` found
-  the only batch covering a ground pixel was a 525-vertex **program** batch
-  with `z 9.88e9` (`0x50169...`), far past the 2^24 depth divisor, so it loses
-  every depth test -- that points at the vertex program's depth output or the
-  divisor, not a missing mesh. Use `RECOMP_XF_BAD` and the `[GLST]` record to
-  find program batches whose transformed z is out of range on the stage.
+- **The transform, measured (2026-10-29):** `RECOMP_XF_BAD` (extended to flag
+  out-of-range z, print the MVP rows c[112..115], and dump the fetched v0 and
+  output for the vertices either side of the bad one) shows the terrain inputs
+  are smooth real terrain (adjacent vertices differ by ~100 model units), so it
+  is **not** a position-fetch bug or stacking at the input. The transform's `w`
+  **straddles the eye plane** — `-1822` to `+37` between adjacent vertices — so
+  the perspective divide explodes (screen x to 311912) and z lands past the far
+  plane (1.77e7 > 1.677e7), failing every depth test and dropping 4,054,005
+  triangles behind the eye. The MVP rows are present and plausible; the open
+  question is whether `raster_xf_clipped`'s near-plane clipper handles the
+  eye-plane straddle as the hardware does.
+- **Next measurements:** (1) A/B `RECOMP_CLIP_NEAR_Z=0` against the default on
+  a ground-facing frame (`rup` pitch, since `rdown` tilts up in this title).
+  (2) `RECOMP_GL_PROBE` still names a 525-vertex program batch with z 9.88e9 at
+  a ground pixel; use `RECOMP_XF_BAD` to match its batch id.
   (2) `RECOMP_XF_FLAT=60 RECOMP_XF_FLAT_AT=400000` still prints the on-screen
   batches that lost every triangle. `RECOMP_BATCH_CLASS=200` reports the big
   batches that take the screen-space path (a 291-vertex strip at v0 y = 8000.01,
