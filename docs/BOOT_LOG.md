@@ -1193,3 +1193,52 @@ Template:
   plus whatever else the `[GLST]` box now makes visible. The next run should
   diff a frame with `RECOMP_GL_NO_DEPTH=1` against one without, at a fixed
   petal position, rather than across whole animations.
+
+## 2026-10-28 — the rectangle over PRESS START was the bump-env stage, unimplemented
+
+- Phase: title screen / intro
+- Symptom: `KNOWN_ISSUES.md`, "a depth patch on the title screen" -- a hard
+  rectangular band over the PRESS START area showing something that is not
+  part of the artwork, seen on both rasterisers. Two days of depth
+  investigation (previous three entries) had ruled out the depth divisor, the
+  clear rectangle and the scissor without naming it.
+- RVA / target: none -- `SET_SHADER_STAGE_PROGRAM` and
+  `SET_TEXTURE_SET_BUMP_ENV_MAT`.
+- Diagnosis: other -- the stage is implemented, the stage *mode* was not. The
+  title programs `stpar 000004C1` on the title screen: stage 0 PROJECT2D
+  (a 256x256 `fmt 1C` bump map), **stage 1 BUMPENVMAP**, stage 2 PROJECT2D
+  (the 640x480 `A8R8G8B8` screen surface), stage 3 off. Its batches sit exactly
+  where the artifact is -- `box 287..359 374..402` and `305..341 381..395` on a
+  640x480 frame. `rc_stage_fetch()`'s switch sent every mode past 5 to the
+  "reads zero" default, and the back end's `rc_stage()` did the same for
+  `mode >= 6u`, so that stage contributed `(0,0,0,0)` to a combiner that
+  expects the warped screen sample: the quad painted a hard-edged dark band
+  instead of the water/heat-haze warp over the artwork.
+- Fix: `BUMPENVMAP` (6) and `BUMPENVMAP_LUMINANCE` (7), in both rasterisers,
+  following xemu's `psh.c`:
+  - `nv2a_pb_exec.c`: `rc_stage_fetch()` takes the stage results so far. Mode 6
+    reads the previous stage's texel as a normal map -- `sign3(b)`, `sign3(g)`
+    -- runs it through the stage's 2x2 bump matrix and adds the result to this
+    stage's normalised coordinates before sampling; mode 7 multiplies the
+    sample by `scale * luminance + offset`. `sign3()` and
+    `sign3_to_0_to_1()` are xemu's.
+  - `nv2a_pb_exec.c`: `SET_TEXTURE_SET_BUMP_ENV_MAT` (0x1B28..0x1B34, four
+    floats), `_SCALE` (0x1B38) and `_OFFSET` (0x1B3C) are recorded per stage
+    into `Nv2aCombiner` (`nv2a_combiner.h`), with a `bump_valid` mask; an
+    unprogrammed stage keeps an identity matrix. `RECOMP_BUMP_LOG=<n>` prints
+    the first n writes as floats.
+  - `nv2a_pb_gl.c`: the same arithmetic in the fragment shader -- `sign3`,
+    `rc_bump_dir()`, modes 6 and 7 in `rc_stage()` -- with `uRcBump` /
+    `uRcBumpSO` uploaded from the combiner state; identity where unprogrammed.
+- Result: the band is gone. Same frame of a 70 s `RECOMP_AUTOPRESS` capture,
+  region (287,374)-(359,402): before mean 3.4 / sd 3.05, after mean 85.4 /
+  sd 56.4 -- the artwork continues through the area, where it used to stop at a
+  straight edge. The other four vertices of `stpar 000004C1` batches, which
+  span `-1315..2156`, are the same effect elsewhere on the screen.
+- Open: the title writes **zero** into every bump matrix word
+  (`[BUMP] stage 1 mat[0..3] 0`), so the sample is not displaced at all and the
+  effect is a plain screen-space read of tex1. Either the title relies on the
+  scale/offset registers alone, or the matrix lives at other method addresses
+  on this title -- the four words are the matrix by the register map, and a
+  nonzero value would settle it. Until then the matrix multiplies by zero,
+  which is what the registers say.
