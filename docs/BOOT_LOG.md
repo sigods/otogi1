@@ -1165,3 +1165,31 @@ Template:
   back end (`z_divisor()`) read `SURFACE_FORMAT` bits 4-7 the same way and both
   fall back to 2^24 for anything that is not Z16, so a format the table does
   not name still gives every draw and every clear the same units.
+
+## 2026-10-28 — the title does send CLEAR_RECT, and it is the whole screen
+
+- Phase: title screen / intro (the rectangular patch over PRESS START)
+- Symptom: the entry above left two candidates for a hard rectangular
+  boundary -- the back end has no scissor, and `SET_CLEAR_RECT` is honoured
+  only on swizzled surfaces -- and neither was exercised by any log, because
+  the method histogram prints only its top ten.
+- RVA / target: `SET_CLEAR_RECT_HORIZONTAL` 0x1D98 / `_VERTICAL` 0x1D9C.
+- Diagnosis: other -- answered, and both candidates fall. The executor now
+  prints the rectangle when it arrives (with `RECOMP_GL_STATE`), and a title
+  run reports exactly one change:
+  `[GLST] clear rect 0..640 0..480 swz 0 set 3`
+  i.e. the title does program the clear rectangle, but it is the **entire
+  surface**, on a non-swizzled one. The CPU's linear clear ignores the rect
+  and clears the whole clip; the back end clears the whole target. Both clear
+  the same pixels, so a partial clear cannot be what carves the patch, and the
+  missing scissor cannot be what bounds it for this title either.
+- Fix: none needed for this title. The back end is still not told about
+  CLEAR_RECT, which stays a latent gap for a title that sends a partial one on
+  a swizzled surface -- recorded here rather than fixed, because nothing in
+  this title can show the difference.
+- Result: of the two rectangular-boundary candidates, both are closed, so the
+  patch is left with the pair named in the entry above -- the 5766-vertex mesh
+  that depth-tests and the draws that ignore the depth buffer entirely --
+  plus whatever else the `[GLST]` box now makes visible. The next run should
+  diff a frame with `RECOMP_GL_NO_DEPTH=1` against one without, at a fixed
+  petal position, rather than across whole animations.
