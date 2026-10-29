@@ -69,6 +69,7 @@ instructions use; `AGENTS.md` § 7 has the complete set.
 | Variable | Effect |
 |---|---|
 | `RECOMP_FB_WINDOW=1` | Open the SDL framebuffer window and present frames — Linux only |
+| `RECOMP_FB_DUMP_STRIDE=<n>` | Keep one frame in `n` from the dump sequence. Menus run at over a hundred frames a second and each BMP is most of a megabyte, so a dump left on for a whole run fills the disk before the scene of interest arrives; the frames kept are still consecutive |
 | `RECOMP_PB_EXEC=1` | Software NV2A push-buffer executor |
 | `RECOMP_USB=1` | OHCI controller and emulated pad |
 | `RECOMP_AUTOPRESS=1` | Send START+A through the emulated pad (needs `RECOMP_USB`) |
@@ -86,6 +87,7 @@ instructions use; `AGENTS.md` § 7 has the complete set.
 | `RECOMP_GL_FLAT=1` | Paint every fragment that survives depth, cull and alpha magenta — the difference between "not submitted" and "not painted" |
 | `RECOMP_GL_NO_COMB=1` | Skip the register combiners and modulate stage 0 by the vertex colour, the back end's original pixel stage |
 | `RECOMP_GL_COMB3=<n>` / `RECOMP_GL_COMB3_MIN=<n>` | The same combiner record for 3D batches (default: batches of 300+ vertices, i.e. the world) |
+| `RECOMP_GAP_LOG=<n>` | The first n screen-space batches the CPU rasteriser paints *without* the register combiners while the back end runs them — stage modes, which stages hold a texture, the first vertex and the colour |
 | `RECOMP_CULL_LOG=<n>` | The first n batches that enable culling, with their flip and cull/front values |
 | `RECOMP_GL_FRONT_MIRROR` | Force the opposite front-face convention, to settle it on a capture |
 | `RECOMP_FOG_TRACE=<n>` | The first n fog evaluations: mode, `SET_FOG_PARAMS`, the program's distance and the factor |
@@ -107,6 +109,12 @@ $ RECOMP_PB_EXEC=1 RECOMP_USB=1 ./build-linux/bin/otogi1 2>stderr.txt
 Audio, when the symptom is silence:
 
 $ RECOMP_AC97_READY=1 RECOMP_AUDIO_WAV=/tmp/out.wav ./build-linux/bin/otogi1
+
+
+Every dumped frame is announced on stderr as `[FB] frame <path> <w>x<h>`.
+The combiner records deduplicate, so they are a set rather than a timeline;
+this line is what places one against the frame on disk — "which batches had
+appeared by the frame with the white rectangle" becomes a grep.
 
 
 ## Smoke test

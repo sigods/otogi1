@@ -122,10 +122,28 @@ different fault and the first two fixes only looked like each other.
   the OpenGL back end. `RECOMP_GL_FLAT` draws the title screen as pure
   magenta — every pixel of it is geometry that passes every gate — so the
   patch is depth, not missing or extra geometry.
-- **Status:** open, not investigated. `RECOMP_GL_NO_DEPTH=1` bisects it, and
-  `RECOMP_GL_STATE=<n>` prints the depth state of the batches involved.
-- **Where the fix belongs:** unknown until the depth state of the petals'
-  pass and of the pass it occludes have been printed.
+- **Status:** open, investigated on 2026-10-28, not fixed. `RECOMP_GL_STATE=8000`
+  over the title window (flips 300-600, 912 sampled batches) splits into 908
+  batches with depth testing off and four with it on: three copies of one
+  `n 5766 ... depth 1 func 203 wmask 0 ... box -444..1085 134..645` mesh, and
+  the only draws that also *write* depth -- `n 216/72 ... wmask 1`, whose boxes
+  are **off screen** (`box 284..338 -219..-176`, `303..343 -143..-96`,
+  `320..362 -135..-95`). So nothing visible writes depth over the patch: the
+  pair to look at is the mesh above, which depth-tests against a buffer almost
+  everything else in that window ignores. Also ruled out: the depth divisor,
+  which the clear (`zclear_value()`) and the back end (`z_divisor()`) derive
+  identically from `SURFACE_FORMAT` bits 4-7 and both map anything that is not
+  Z16 to 2^24.
+- **Next:** the `[GLST]` record now ends with the batch's screen box, so
+  `RECOMP_GL_STATE=8000` on a title run names the rectangle directly; match it
+  against the patch on a frame. The back end has **no scissor at all**
+  (nothing in `nv2a_pb_gl.c`), and the executor honours `SET_CLEAR_RECT` only
+  on swizzled surfaces -- both are candidates for a hard rectangular boundary
+  and neither is exercised by a line of today's logs, so the next run should
+  count those methods before either is called the cause.
+- **Where the fix belongs:** unknown until the box and the frame agree.
+  `RECOMP_GL_NO_DEPTH=1` bisects it, and `RECOMP_GL_STATE=<n>` prints the depth
+  state of the batches involved (now with their boxes).
 
 ## Closed on 2026-10-27 — the stage world was not drawn
 

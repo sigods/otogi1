@@ -1049,3 +1049,119 @@ Template:
   frames to the digit (`f00030`: sd 0.136441, R 37.93 / G 42.16 / B 49.83 both
   runs), which is what a correction with no live collision should look like --
   the bug was latent here, not the cause of the white quad.
+
+## 2026-10-28 — the two rasterisers disagree on screen-space batches
+
+- Phase: rendering, pixel stage (all scenes that draw pre-transformed batches)
+- Symptom: none on its own -- found while chasing the transition's white
+  rectangle, which never reproduced in today's captures. The question was
+  "which batch paints (560,370) white", and the answer needed to know where
+  the back end's pixel stage and the CPU rasteriser's part company.
+- RVA / target: not a guest address; `raster_batch()` in
+  `xboxrecomp/src/kernel/nv2a_pb_exec.c`.
+- Diagnosis: other -- a structural divergence between the two rasterisers.
+  `raster_batch()` routes a batch three ways: a vertex-program or
+  fixed-function batch goes to `raster_batch_program()`, whose per-triangle
+  path sets `T.use_rc = s_gpu.rc_seen && !no_rc` and evaluates the register
+  combiners; a batch that is neither goes down the **screen-space** path
+  (`raster_indexed()` -> `raster_triangle()`), which never calls
+  `nv2a_rc_eval()` at all -- with texture coordinates it puts the sampled
+  texel, without them it puts the vertex colour. The back end, meanwhile, is
+  handed `batch.combiner = s_gpu.rc_seen ? &s_gpu.rc : NULL` for *every* batch
+  (`backend_flush()`), so `nv2a_pb_gl.c` runs the combiners on the very batch
+  the CPU painted without them. Any screen-space batch whose combiner answer
+  differs from "texel, or vertex colour" is a frame the two paths render
+  differently, and a combiner that resolves to a constant paints a flat
+  rectangle over the scene.
+- Fix: none yet -- this is recorded because it is a live divergence, not a
+  theory. A diagnostic landed with it: **`RECOMP_GAP_LOG=<n>`** prints the
+  first n screen-space batches that reach `backend_flush()` with combiners
+  seen, with the state that decides the colour (the four 5-bit
+  `SHADER_STAGE_PROGRAM` modes, which stages hold a valid texture, the bound
+  stage-0 offset and size, the first vertex, the vertex colour).
+  It fires on an ordinary run:
+  `[GAP] screen-space batch 8685 flip 757 n 134 textured 1 modes 1/0/0/0 texvalid 1000 tex0 812A3000 32x64 v0 -109.908 -76.2728 col FF3F7F00 rc 1`
+  i.e. stage 0 in PROJECT2D mode with a real 32x64 texture bound, painted by
+  the CPU as a bare texel and by the back end through the combiners.
+- Result: named and instrumented. The next step is to decide which side is
+  right -- hardware runs every pixel through the combiners (`nv2a_combiner.h`
+  says so), so the CPU path is the one under-implementing -- and then to make
+  `raster_triangle()` evaluate them. Not attempted: it is a per-pixel change
+  in the reference path and needs its own capture to verify against.
+
+## 2026-10-28 — the white rectangle did not reproduce; the detector that said
+## it did was reading a white screen
+
+- Phase: area transition / cutscene (the white 136x136 rectangle at +499+309)
+- Symptom: a scan of today's captures reported 81 frames containing the
+  rectangle. They are the **SEGA "Published By" logo** -- a solid white screen,
+  so every 136x136 crop of it is pure white.
+- Diagnosis: other -- a bad test, not a rendering fault. The detector now
+  requires the ring around the box to be more than half non-white, which the
+  logo screen fails and the real rectangle passes.
+- Fix: none; the corrected scan found **zero** such frames in 1474 frames of a
+  200 s `RECOMP_AUTOPRESS` run, 1468 frames of a 150 s run, and 798 frames of
+  a `RECOMP_PB_GL=0` run. The rectangle did not appear in any of them, so
+  today adds no evidence about it either way; the earlier captures (gWIPE,
+  gAUTO) remain the only ones that contain it.
+- Result: the hunt is blocked on a capture that contains the event. What makes
+  that a query rather than a guess now exists: `[FB] frame <path>` is printed
+  for every dumped frame, so a back end record can be placed against the frame
+  on disk, and the box field added earlier in `comb_report()` names where each
+  reported batch sits.
+
+## 2026-10-28 — flips stop mid-run again, with the dispatch gate on
+
+- Phase: gameplay / any long run
+- Symptom: four of today's runs stopped presenting partway through and never
+  resumed: 299 dumped frames then silence (gW9), 247 (gGAP), 301 (gGAP2), 1474
+  (gG3). The guest stops as well as the dumps -- `[GPU] draw` freezes (e.g.
+  `draw #10800` unchanged across 10 s) and the log stops growing except for the
+  periodic `[KERNEL] ordinal` summary, while the process keeps burning CPU.
+- Diagnosis: the input-stall signature again (BOOT_LOG, 2026-10-26), which
+  `RECOMP_DISPATCH_GATE=1` -- set by default in `src/game/main.c` -- was meant
+  to remove. No `irq held off by guest IRQL` line appears in these runs, so the
+  old signature is not being printed, only the shape of the failure.
+- Fix: none. A run that dumps every frame (stride 1) reached 1474 frames before
+  it stopped; a run that dumped with a stride stopped sooner, so frame dumping
+  is not what stalls it. `taskset -c 0` and a longer pad script are the two
+  things not tried today.
+- Result: every capture today is truncated at 1-3 minutes of wall clock, which
+  is why no run reached the ~190 s point where the transition and the movie
+  are known to play. Until a run survives past that point, the white rectangle
+  and the movie strips cannot be measured.
+
+## 2026-10-28 — the title screen's depth patch: what the state of those frames is
+
+- Phase: title screen / intro (the rectangular patch over PRESS START)
+- Symptom: maintainer report (2026-10-28, `KNOWN_ISSUES.md`): a rectangle over
+  the PRESS START area shows a polygon pattern that is not part of the artwork,
+  over the falling petals; `RECOMP_GL_FLAT` paints the whole title magenta, so
+  the patch is depth and not geometry.
+- RVA / target: none -- `RECOMP_GL_STATE=<n>` on a headless title run.
+- Diagnosis: open, but the state is now on record. In the title window
+  (flips 300-600) 912 sampled batches split:
+  - 444 `depth 0 func 203 wmask 0`, 464 `depth 0 func 203 wmask 1` -- depth
+    testing off, so most of the screen does not read the depth buffer at all;
+  - 3 copies of one batch: `n 5766 depth 1 func 203 wmask 0 ... z 1.56704e+07
+    rhw 0.00669077 col 80000000 uv 119.496 133.733` -- depth test **on**
+    (LEQUAL) with no depth write, a world-space mesh of 5766 vertices in
+    half-alpha black;
+  - **one** batch that both tests and writes depth: `batch 4349 flip 579
+    n 216 depth 1 func 203 wmask 1 ... v0 708.156 -91.0903 z 1.40982e+07
+    rhw 0.0160521 col FF808080 uv 8 32`.
+  So exactly one draw per sampled frame writes depth while a 5766-vertex mesh
+  depth-tests against it: that pair is where a rectangle can be carved out of
+  a mesh that would otherwise cover the screen, which is the shape of the
+  reported patch. Its box was not printed -- the record carried only `v0`,
+  which for that batch is off-screen (x 708) and says nothing about the region.
+- Fix: none yet. The diagnostic was extended instead: `[GLST]` now ends with
+  `box x0..x1 y0..y1`, computed from the batch's vertices, so the next run
+  answers "which rectangle does the depth-writing batch cover" in one grep and
+  can be matched against the patch's position on a captured frame.
+- Result: next step is one command -- `RECOMP_GL_STATE=8000` on a title run,
+  grep `wmask 1` inside `depth 1`, and compare its box with the patch. The
+  depth divisor is not the fault: both the clear (`zclear_value()`) and the
+  back end (`z_divisor()`) read `SURFACE_FORMAT` bits 4-7 the same way and both
+  fall back to 2^24 for anything that is not Z16, so a format the table does
+  not name still gives every draw and every clear the same units.
