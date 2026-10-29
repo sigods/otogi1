@@ -134,3 +134,39 @@ Run the same scene in xemu under its GDB stub to learn what an address *means*
 when the recompiled build disagrees. xemu reports Otogi as "Playable, minor
 issues" — a reference target ([xemu compatibility page](https://xemu.app/titles/46530002/), community report, last tested 2024-06-29). Title details:
 [`TITLE_OTOGI.md`](TITLE_OTOGI.md).
+
+### Getting xemu to boot this disc
+The AppImage (v0.8.120 here) is not broken when it "does not load the ISO".
+Two settings in `~/.local/share/xemu/xemu/xemu.toml` decide that, and the first
+one is not obvious:
+
+- **`hdd_path` must be empty.** xemu boots the hard disk in preference to the
+  DVD, so with any HDD configured the console boots that disk and the disc is
+  ignored. `hdd_path = ''` makes it boot the disc.
+- **`dvd_path` must point at the `.iso`,** and the image has to start at
+  sector 0 of the *filesystem*, not of the disc. Otogi's USA image carries its
+  video partition in front of the filesystem -- the XDVDFS volume descriptor
+  sits at `0x18310000` here, i.e. a partition base of `0x18300000` -- so the
+  image xemu is given must have that prefix cut off:
+
+  ```
+  dd if='Otogi - Myth of Demons (USA).iso' of=otogi_fs.iso \
+     bs=2048 skip=$((0x18300000 / 2048))
+  ```
+
+With both in place the disc is read, but this title still stops on the
+"Your Xbox requires service" page: the 32 KB *XBE sector* the console reads to
+find `default.xbe` is part of the disc's leading area, so slicing the
+filesystem out leaves it behind. A bootable image has to be rebuilt from the
+extracted tree by a writer that emits that sector (`xdvdfs`'s `pack`, not
+`tools.xiso`, which only reads), and that is a separate job -- the recompiled
+build itself needs no emulator to run.
+
+### Pad-script runs need the audio device
+
+A `RECOMP_PAD_SCRIPT` capture must also set `RECOMP_AC97_READY=1`. Without it
+the title reaches the main menu, stops presenting in the middle of
+`d:\menu\bin\mainmenu_us.med` and never returns: the guest is waiting on the
+APU, so the run looks like a hang in the menu with no error anywhere. Two
+capture runs on 2026-10-28 were lost to this before it was spotted; the tell is
+that `[FB] frame` stops while the kernel-ordinal counters keep climbing.
