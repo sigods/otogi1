@@ -87,6 +87,7 @@ instructions use; `AGENTS.md` § 7 has the complete set.
 | `RECOMP_GL_FLAT=1` | Paint every fragment that survives depth, cull and alpha magenta — the difference between "not submitted" and "not painted" |
 | `RECOMP_GL_NO_COMB=1` | Skip the register combiners and modulate stage 0 by the vertex colour, the back end's original pixel stage |
 | `RECOMP_GL_COMB3=<n>` / `RECOMP_GL_COMB3_MIN=<n>` | The same combiner record for 3D batches (default: batches of 300+ vertices, i.e. the world) |
+| `RECOMP_GL_PROBE=x,y[,n[,minverts[,minflip]]]` | The draws whose triangles actually cover pixel `x,y`, with state, and the pixel before/after each: the answer to "which draw should have painted this pixel" when it reads as the clear colour |
 | `RECOMP_GAP_LOG=<n>` | The first n screen-space batches the CPU rasteriser paints *without* the register combiners while the back end runs them — stage modes, which stages hold a texture, the first vertex and the colour |
 | `RECOMP_CULL_LOG=<n>` | The first n batches that enable culling, with their flip and cull/front values |
 | `RECOMP_GL_FRONT_MIRROR` | Force the opposite front-face convention, to settle it on a capture |

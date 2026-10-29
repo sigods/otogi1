@@ -22,6 +22,10 @@ authoritative statement of what works.
   the same scene; the menus run at 90-120 fps.
 - `RECOMP_AUTOPRESS` on POSIX hosts: taps START then A through the emulated
   pad, which drives a headless run from the logos to the start-game stage.
+- `RECOMP_GL_PROBE=x,y[,n[,minverts[,minflip]]]` in the OpenGL back end: the
+  draws that actually cover one pixel (point-in-triangle, not a screen box),
+  with their state and the pixel before and after each draw. It replaces
+  box-based guessing when a pixel reads as the clear colour.
 - Static recompilation of the retail Xbox XBE into native Linux and Windows
   x86-64 executables, built with the `xboxrecomp` toolkit.
 - Boot to the title screen: logos, looping attract video, and the title's own
