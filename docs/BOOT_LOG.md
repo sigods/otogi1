@@ -1242,3 +1242,28 @@ Template:
   on this title -- the four words are the matrix by the register map, and a
   nonzero value would settle it. Until then the matrix multiplies by zero,
   which is what the registers say.
+
+## 2026-10-29 — the stage's landing ends on the Retire prompt
+
+- Phase: gameplay / intro
+- Symptom: a scripted run reaches the stage at 93 s (bamboo grove, HUD, light
+  shafts, the player mid-air in a landing pose at frame ~3200 of a 5311-frame
+  capture) and then, with no further pad input, the title itself puts up
+  "再開 / Restart / Back to Main Menu / Retire" over the stone-lantern scene.
+- RVA / target: none -- no fault, no missing asset.
+- Diagnosis: other. Measured, not guessed: the pad log shows exactly two
+  START presses in the whole run (t=1500 and t=3503 ms, the ones the timeline
+  sends) and no other START, so the prompt was not the pad's. The backdrop
+  behind the prompt is drawn live -- two frames eight seconds apart differ in
+  5407 of 115200 pixels with mean 1.0 per channel, which is animated fog, not
+  a still -- and it shows a wet reflective floor with the lanterns mirrored in
+  it, so the ground is not missing everywhere, only under the player.
+- Fix: none yet.
+- Result: the open question is now specific. Two frames stand against each
+  other: the pause backdrop draws a floor the scene camera does not, and the
+  prompt follows a landing. `tools/capture.sh stage-walk` (new) drives that
+  same path with the camera pitched down, and `RECOMP_GL_NO_COMB` /
+  `_NO_DEPTH` / `_NO_CULL` through its `EXTRA_ENV` split the pixel stage from
+  the geometry in one A/B pair. Those three runs on the old timeline all left
+  the same prompt on screen, so the timeline, not the switch, is what to fix
+  first.

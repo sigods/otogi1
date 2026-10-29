@@ -1,0 +1,21 @@
+# The to-stage timeline, then play: walk forward and pitch the camera down.
+#
+# The left stick walks and the right stick turns the camera, so a hold of
+# `lup` moves the player through the grove and `rdown` aims the camera at the
+# floor under him -- which is the view the ground has to appear in. Alternate
+# the two rather than holding both: Otogi locks the camera during its own
+# cinematics and a hold that starts inside one is swallowed.
+#
+# Include with the to-stage timeline above; this file is appended to it by
+# tools/capture.sh (scenario "stage-walk" = to-stage + this file).
+150000:lup:12000
+170000:rdown:4000
+176000:lup:10000
+190000:rdown:4000
+196000:lup:10000
+210000:rdown:4000
+216000:lup:10000
+230000:rdown:4000
+236000:lup:8000
+250000:rdown:6000
+258000:lup:10000

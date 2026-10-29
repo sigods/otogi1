@@ -1,0 +1,80 @@
+# Title screen -> main menu -> New Game -> the stage, then hands off.
+#
+# Times are milliseconds from the title's first pad read. Two START taps get
+# past "PRESS START" (one is enough, the second covers the repeat delay); A
+# every 1.2 s then walks the front end. The taps stop at 85 s because the stage
+# is up by ~93 s on this machine: an A after that is an attack, and an A inside
+# a cutscene skips it.
+#
+# The states this reaches, in order: publisher logos, title screen with falling
+# petals, main menu, New Game, the pre-stage movie, the player's landing
+# cutscene, then gameplay standing in the bamboo grove.
+1500:START:300
+3500:START:300
+5000:A:300
+6200:A:300
+7400:A:300
+8600:A:300
+9800:A:300
+11000:A:300
+12200:A:300
+13400:A:300
+14600:A:300
+15800:A:300
+17000:A:300
+18200:A:300
+19400:A:300
+20600:A:300
+21800:A:300
+23000:A:300
+24200:A:300
+25400:A:300
+26600:A:300
+27800:A:300
+29000:A:300
+30200:A:300
+31400:A:300
+32600:A:300
+33800:A:300
+35000:A:300
+36200:A:300
+37400:A:300
+38600:A:300
+39800:A:300
+41000:A:300
+42200:A:300
+43400:A:300
+44600:A:300
+45800:A:300
+47000:A:300
+48200:A:300
+49400:A:300
+50600:A:300
+51800:A:300
+53000:A:300
+54200:A:300
+55400:A:300
+56600:A:300
+57800:A:300
+59000:A:300
+60200:A:300
+61400:A:300
+62600:A:300
+63800:A:300
+65000:A:300
+66200:A:300
+67400:A:300
+68600:A:300
+69800:A:300
+71000:A:300
+72200:A:300
+73400:A:300
+74600:A:300
+75800:A:300
+77000:A:300
+78200:A:300
+79400:A:300
+80600:A:300
+81800:A:300
+83000:A:300
+84200:A:300

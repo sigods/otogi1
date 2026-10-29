@@ -416,6 +416,24 @@ static void otogi_set_default_env(void)
 {
     if (!getenv("RECOMP_DISPATCH_GATE"))
         setenv("RECOMP_DISPATCH_GATE", "1", 1);
+
+    /* The three a capture needs, on by default so a run is one command.
+     *
+     * RECOMP_AC97_READY is the one that bit us: the title's front end waits on
+     * the APU, so with the codec absent it stops presenting in the middle of
+     * `d:\menu\bin\mainmenu_us.med` and never returns -- no error, no crash,
+     * just a frozen picture and kernel-ordinal counters that keep climbing.
+     * Two capture runs were lost to it before it was spotted
+     * (docs/RUNNING.md). Without the executor and the USB host nothing draws
+     * and no pad exists, so a headless run has no use for those off either;
+     * an explicit value in the environment still wins for all of them.
+     */
+    if (!getenv("RECOMP_PB_EXEC"))
+        setenv("RECOMP_PB_EXEC", "1", 1);
+    if (!getenv("RECOMP_USB"))
+        setenv("RECOMP_USB", "1", 1);
+    if (!getenv("RECOMP_AC97_READY"))
+        setenv("RECOMP_AC97_READY", "1", 1);
 }
 
 static int otogi_guest_main(void)

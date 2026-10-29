@@ -170,3 +170,50 @@ the title reaches the main menu, stops presenting in the middle of
 APU, so the run looks like a hang in the menu with no error anywhere. Two
 capture runs on 2026-10-28 were lost to this before it was spotted; the tell is
 that `[FB] frame` stops while the kernel-ordinal counters keep climbing.
+
+## Captures: `tools/capture.sh`
+
+A capture is a named pad timeline, a frame dump and the environment that makes
+the run deterministic, so it survives a reboot instead of living in `/tmp`:
+
+```
+tools/capture.sh to-stage 200       # front end -> the stage, standing in the grove
+tools/capture.sh stage-walk 260     # ... and then walk, camera aimed at the floor
+STRIDE=1 tools/capture.sh to-stage 90
+EXTRA_ENV="RECOMP_GL_NO_DEPTH=1" tools/capture.sh stage-walk 200
+```
+
+The scenario names a timeline in `tools/pads/<scenario>.txt`, in
+`RECOMP_PAD_SCRIPT` syntax (`<ms>:<button>[+<button>...][:<hold ms>]`, counted
+from the title's first pad read). `stage-walk` is `to-stage` followed by
+`stage-walk`, because the second only means anything after the first. Timelines
+may be documented with `#` lines: the runner strips them, since the toolkit's
+parser stops at the first entry it cannot read.
+
+`to-stage` reaches publisher logos, the title screen, the main menu, New Game,
+the pre-stage movie, the landing cutscene and gameplay in 93 s on this machine;
+its A taps stop at 85 s because an A after the stage is up is an attack and an
+A inside a cutscene skips it. `stage-walk` then alternates `lup` (walk) and
+`rdown` (pitch the camera down) rather than holding both, because Otogi locks
+the camera during its own cinematics.
+
+The env the runner sets is not optional, and each line is explained in the
+script; the one that bites silently is `RECOMP_AC97_READY=1` (see below). The
+project's `src/game/main.c` now turns the executor, the USB host and the AC'97
+codec on by default, so a bare `./build-linux/bin/otogi1` behaves like the
+runner; an explicit environment value still wins.
+
+Review a run without a window: the frames are BMPs, so
+
+```
+ffmpeg -framerate 30 -i runs/to-stage/f%05d.bmp -pix_fmt yuv420p out.mp4
+```
+
+gives the whole capture at a glance, and `docs/RUNNING.md`'s differential
+switches (`RECOMP_GL_FLAT`, `_NO_COMB`, `_NO_DEPTH`, `_NO_CULL`) can be run
+against the same scenario through `EXTRA_ENV` for an A/B pair.
+
+For driving a screen whose arrival time cannot be predicted, `RECOMP_PAD_LIVE`
+beats a fixed timeline: append a press to the file, look at the newest dumped
+frame, repeat (the toolkit's `usb_gamepad.c` documents the syntax; the
+burnout3 project's `docs/running.md` is the worked example of the loop).
