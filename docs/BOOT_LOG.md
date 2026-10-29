@@ -1356,4 +1356,59 @@ Template:
   A Windows D3D11 back end would sit behind the *same* executor decoder and
   would not answer a missing-batch question; the CPU rasteriser is already the
   reference by project rule, and `RECOMP_PB_GL=0` is how to reach it. Not done.
+- **2026-10-29, the transform exonerated, the gate is fragment alpha.** Three
+  measurements close the previous entry's open question and open a narrower
+  one.
+  1. *The terrain program is correct, and so are its constants.* The program
+     computes `clip = (dot(v0,c[112]), dot(v0,c[113]), dot(v0,c[114]))`, divides
+     by `dot(v0,c[118])`, applies viewport `c[58]/c[59]`, and leaves
+     `oPos.w = dot(v0,c[115])`; `c[118] == c[115]` exactly (same w row by
+     design). Hand-recomputed for the flagged vertex of batch 82781: inputs
+     `(-7123,-18650,-5890)`, w = -61.8687, and
+     `x = 2309.28/-61.8687*320+320.5 = -11623.6` = the reported output to four
+     digits; same for y (125158) and z (4.390e7 = clip.z/w * 2^24). The
+     projection is `z/w = 1 - 100/w`: **near plane 100, far infinity** — which
+     is also why rows `c[114]` and `c[115]` look near-identical (differ by
+     exactly the 100-unit near translation). The "bad" vertices XFBAD flags
+     are behind-eye vertices that the clipper must cut; their z past far is
+     arithmetic, not corruption. The earlier "w straddles the eye" reading was
+     right about the straddle and wrong about who is at fault: ground under a
+     close camera legitimately straddles the eye, and clipping it is normal.
+  2. *Clip order is not the gate.* `RECOMP_CLIP_ZFIRST` (near plane before
+     `w=1e-3`) and `RECOMP_CLIP_ZONLY` (near plane alone) were A/B'd against
+     the default on ground-facing frames (`rup` pitch): no visible difference;
+     `zfirst` still leaves ~20k fan vertices at `w < 1e-2`, `zonly` ~12k. The
+     `w`-plane does produce the x1000 z blow-up the GL_PROBE saw (9.88e9 =
+     9.88e6 x 1000 at `NV_CLIP_W`), but cutting those triangles differently
+     does not paint the ground, so it is a secondary artifact, not the gate.
+     New counters in the census: `clip: N vertices at w < 1e-2, M clipped with
+     z past far`.
+  3. *The gate is fragment alpha, and it comes from the stage-0 texture.* The
+     evidence chain, all from matched (`rup`, stride 2, 170 s) captures:
+     `RECOMP_GL_FLAT` paints the ground (its magenta path returns before the
+     alpha test — FLAT does *not* prove the alpha test passes, a correction to
+     the comment on `state_env_init`), `RECOMP_GL_ALPHA_ONE` (new: forces
+     `c.a = 1` after the combiner) makes the ground mesh **appear** as a pale
+     blue surface, and `RECOMP_GL_NO_COMB=1` (modulate fallback) leaves it
+     **invisible** — because the fallback alpha is the same product. Decoding
+     batch 42838/70992's combiner: `final alpha = read_alpha(f1>>8) = r0.a`,
+     `r0.a = v0.a * t0.a` (alpha ICW `D4D81010`), `v0.a` defaults to 1 in
+     `nv2a_vsh_run` (`outregs[3][3] = 1`), so **fragment alpha = the stage-0
+     texture's alpha plane**, blended `SRC_ALPHA/ONE_MINUS_SRC_ALPHA` with
+     alpha test `GREATER 0`. The terrain batches' stage-0 textures (32x64 and
+     128x256 A8R8G8B8/DXT5) sample as
+     `alpha 0..201 (17 of 25 points zero), red 206..239` — plausible ground
+     colour with an almost-empty alpha plane. RGB under the combiner is
+     `v0.rgb * t0.rgb` (normal modulate), so colour is fine; only alpha
+     collapses, which is exactly "invisible normally, opaque under FLAT or
+     ALPHA_ONE".
+  Next question (narrow): *why is that alpha plane empty* — is the texture's
+  guest memory really alpha-0 (then the title wrote it through a path that
+  loses alpha: render-target writeback or a clear missing the A byte), or does
+  the sampler read the wrong bytes? The CPU rasteriser run (`RECOMP_PB_GL=0`,
+  same pad) splits it: ground visible there = GL upload bug; invisible = data
+  or title-side path. Diagnostics added this pass, all env-gated:
+  `RECOMP_CLIP_ZFIRST`, `RECOMP_CLIP_ZONLY`, `RECOMP_GL_ALPHA_ONE`, XFBAD's
+  constant dots + extra constants + combiner words + per-stage texture alpha
+  sampling + blend/depth state line, and the two clip counters.
 

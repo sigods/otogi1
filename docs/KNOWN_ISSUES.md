@@ -28,30 +28,38 @@ surface.
   no-op strips (the 2026-10-27 census), not terrain waiting on a transform. So
   the 68,601 "skipped as not screen-space" batches in a 150 s stage run are
   those strips; do not chase a composite matrix for them.
-- **The transform, measured (2026-10-29):** `RECOMP_XF_BAD` (extended to flag
-  out-of-range z, print the MVP rows c[112..115], and dump the fetched v0 and
-  output for the vertices either side of the bad one) shows the terrain inputs
-  are smooth real terrain (adjacent vertices differ by ~100 model units), so it
-  is **not** a position-fetch bug or stacking at the input. The transform's `w`
-  **straddles the eye plane** — `-1822` to `+37` between adjacent vertices — so
-  the perspective divide explodes (screen x to 311912) and z lands past the far
-  plane (1.77e7 > 1.677e7), failing every depth test and dropping 4,054,005
-  triangles behind the eye. The MVP rows are present and plausible; the open
-  question is whether `raster_xf_clipped`'s near-plane clipper handles the
-  eye-plane straddle as the hardware does.
-- **Next measurements:** (1) A/B `RECOMP_CLIP_NEAR_Z=0` against the default on
-  a ground-facing frame (`rup` pitch, since `rdown` tilts up in this title).
-  (2) `RECOMP_GL_PROBE` still names a 525-vertex program batch with z 9.88e9 at
-  a ground pixel; use `RECOMP_XF_BAD` to match its batch id.
-  (2) `RECOMP_XF_FLAT=60 RECOMP_XF_FLAT_AT=400000` still prints the on-screen
-  batches that lost every triangle. `RECOMP_BATCH_CLASS=200` reports the big
-  batches that take the screen-space path (a 291-vertex strip at v0 y = 8000.01,
-  1848-vertex prim-5 meshes at v0 -40 -359, all `mode 0x4 composite 0`).
-  Deriving the transform from NV2A's projection/model-view was tried and
-  reverted: both registers are zero on those batches (`BOOT_LOG.md`).
-- **Where the fix belongs:** `nv2a_pb_exec.c` (batch classification,
-  transform, or the index/vertex decode), not the OpenGL back end: the same
-  frame has no ground on the CPU rasteriser's stage captures either.
+- **The transform, exonerated (2026-10-29, second pass):** the program and
+  its constants are correct end to end — `clip = (dot c[112], c[113],
+  c[114])`, divide by `dot c[118]` (== `c[115]` == clip w), viewport
+  `c[58]/c[59]`; a flagged vertex's outputs recompute from the printed rows to
+  four digits. The projection is `z/w = 1 - 100/w` (near 100, far infinity),
+  which is also why rows c[114]/c[115] look near-identical. Ground under a
+  close camera legitimately straddles the eye; z past far on those vertices is
+  arithmetic, not corruption. A/B'd `RECOMP_CLIP_ZFIRST` and
+  `RECOMP_CLIP_ZONLY` against the default on ground frames: **no visible
+  difference** — the `w=1e-3` clip does produce the probe's 9.88e9 z (x1000),
+  but re-cutting those triangles paints nothing, so it is a secondary
+  artifact.
+- **The gate is fragment alpha (2026-10-29):** `RECOMP_GL_ALPHA_ONE` (forces
+  `c.a = 1` after the combiner) makes the ground mesh **appear** (pale blue),
+  while `RECOMP_GL_NO_COMB=1` (modulate fallback) keeps it **invisible** — the
+  fallback alpha is the same product. Decoded from the terrain batch's
+  combiner words: `final alpha = r0.a = v0.a * t0.a`, `v0.a` defaults to 1 in
+  `nv2a_vsh_run`, so **fragment alpha = the stage-0 texture's alpha plane**,
+  blended `SRC_ALPHA/INVSRC_ALPHA` with alpha test `GREATER 0`. The terrain's
+  stage-0 textures sample as `alpha 0..201 (17/25 points zero), red 206..239`
+  — plausible colour, near-empty alpha, which is exactly "invisible normally,
+  opaque under FLAT/ALPHA_ONE".
+- **Next measurement (narrow):** *why is that alpha plane empty* — does the
+  texture's guest memory really hold alpha-0 (title-side write path: render
+  target writeback or a clear missing the A byte), or does a sampler read the
+  wrong bytes? A `RECOMP_PB_GL=0` capture on the same pad splits it (CPU
+  visible = GL upload bug; CPU invisible = data/upstream), and
+  `RECOMP_XF_BAD` now prints each stage's sampled alpha range per flagged
+  batch to name the texture.
+- **Where the fix belongs:** likely `nv2a_pb_exec.c` (texture decode or
+  surface write path) or upstream in the toolkit's texture upload; not the
+  vertex transform, which is verified correct.
 
 ## The stage's lit geometry was drawn inside-out, torn and painted the fog colour
 
