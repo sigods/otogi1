@@ -2,6 +2,48 @@
 
 One entry per open blocker. Each records the symptom as it appears in a log, the evidence behind it, the current status, and where a fix belongs. Milestone status is in [`../ROADMAP.md`](../ROADMAP.md); the raw history is in [`BOOT_LOG.md`](BOOT_LOG.md).
 
+## The stage's floor never reaches the screen
+
+Open. The start-game stage draws the bamboo, the haze, the light shafts, the
+HUD and the player, and no floor under him: the pixels where the ground should
+be are exactly the clear colour (`srgb(0,50,100)`), not a fogged or culled
+surface.
+
+- **Measured on 2026-10-29:** `RECOMP_GL_FLAT=1` paints the lower half magenta,
+  but that is a full-screen effect/screen pass (FLAT skips the alpha test), not
+  the terrain. `RECOMP_GL_NO_BLEND=1` fills the frame with a grey rock image
+  that sits above the player and the bamboo with the wrong position and
+  texture -- a screen-space pass drawn opaque, not the ground. The new
+  `RECOMP_GL_PROBE=320,440` does the point-in-triangle test and finds **no**
+  terrain batch covering the pixel: the only hit is a 525-vertex program batch
+  at z 9.88e9 (past the depth divisor), which cannot paint. `NO_DEPTH` and
+  `NO_CULL` do not restore the floor.
+- **What it is not:** not the fog unit (the factor is 1 on the stage), not
+  culling, not the depth buffer, and not the clear rectangle. The ground is
+  either never submitted or loses every triangle in the executor.
+- **Not the dropped batches (2026-10-29):** `RECOMP_XF_DROP=<n>` reports the
+  fixed-function batches thrown away as "not screen-space", with the reason and
+  the transform context. All sampled drops on a `to-stage` run are
+  `fetch-failed` -- stride-0 vertex arrays the title submits as deliberate
+  no-op strips (the 2026-10-27 census), not terrain waiting on a transform. So
+  the 68,601 "skipped as not screen-space" batches in a 150 s stage run are
+  those strips; do not chase a composite matrix for them.
+- **Next measurements:** (1) the depth of the terrain. `RECOMP_GL_PROBE` found
+  the only batch covering a ground pixel was a 525-vertex **program** batch
+  with `z 9.88e9` (`0x50169...`), far past the 2^24 depth divisor, so it loses
+  every depth test -- that points at the vertex program's depth output or the
+  divisor, not a missing mesh. Use `RECOMP_XF_BAD` and the `[GLST]` record to
+  find program batches whose transformed z is out of range on the stage.
+  (2) `RECOMP_XF_FLAT=60 RECOMP_XF_FLAT_AT=400000` still prints the on-screen
+  batches that lost every triangle. `RECOMP_BATCH_CLASS=200` reports the big
+  batches that take the screen-space path (a 291-vertex strip at v0 y = 8000.01,
+  1848-vertex prim-5 meshes at v0 -40 -359, all `mode 0x4 composite 0`).
+  Deriving the transform from NV2A's projection/model-view was tried and
+  reverted: both registers are zero on those batches (`BOOT_LOG.md`).
+- **Where the fix belongs:** `nv2a_pb_exec.c` (batch classification,
+  transform, or the index/vertex decode), not the OpenGL back end: the same
+  frame has no ground on the CPU rasteriser's stage captures either.
+
 ## The stage's lit geometry was drawn inside-out, torn and painted the fog colour
 
 Closed on 2026-10-28 in three parts; kept because each symptom pointed at a

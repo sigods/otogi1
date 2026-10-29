@@ -1267,3 +1267,74 @@ Template:
   the geometry in one A/B pair. Those three runs on the old timeline all left
   the same prompt on screen, so the timeline, not the switch, is what to fix
   first.
+
+## 2026-10-29 — the stage's ground is not in the frame, and NO_BLEND's "ground" is not it
+
+- Phase: gameplay (start-game stage, OpenGL back end)
+- Symptom: the stage's floor never appears under the player; the bottom of the
+  frame is exactly the clear colour `srgb(0,50,100)` at (320,470), (50,440)
+  and (600,450) in a frame where the player stands. The pause backdrop draws a
+  floor, so the title is not simply missing a mesh.
+- What was measured, in order:
+  - `RECOMP_GL_FLAT=1` paints the lower half magenta, so *something* passes
+    depth/cull there. That is not the ground: FLAT skips the alpha test, so a
+    full-screen effect quad paints solid magenta too, and the stage has one
+    (the haze/screen pass).
+  - `RECOMP_GL_NO_BLEND=1` fills the frame with a grey rock image and hides the
+    player and the bamboo behind it. The user report settles what that is: it
+    sits *above* the player and the bamboo and its position and texture do not
+    match the reference, so it is a screen-space pass drawn opaque, not the
+    terrain.
+  - A new `RECOMP_GL_PROBE=x,y[,n[,minverts[,minflip]]]` (`nv2a_pb_gl.c`) does
+    the point-in-triangle test against every batch and prints the state of the
+    draws that really cover the pixel, plus the pixel before and after each
+    draw (`pre`/`post` RGBA). On a stage frame where the player stands, the
+    only batch covering (320,440) is a 525-vertex program batch with
+    `z 9.88e9` (`0x50169...`), `rhw 1`, `blend 0`, `wmask 1`, culling front;
+    its depth is far past the divisor, so it cannot paint. No terrain batch
+    covers the pixel at all.
+  - `RECOMP_GL_NO_DEPTH=1` does not restore the floor on the same scene, and
+    `RECOMP_GL_NO_CULL=1` only reveals the player's own back faces. The floor
+    is not depth- or cull-culled.
+- Conclusion: the stage's terrain is either not submitted or is submitted and
+  loses every triangle, and what a screenshot shows under NO_BLEND is a
+  screen-space pass. The next measurement is the census the executor already
+  keeps: `RECOMP_XF_FLAT=<n> RECOMP_XF_FLAT_AT=<batch id>` on a stage run. The
+  run that reached the stage ended at 772,461 batches, so the filter start has
+  to be below that (the first attempt used 1,000,000 and printed nothing --
+  that is the whole reason it produced no records).
+- Tried and reverted: deriving the fixed-function transform from NV2A's
+  projection (0x0440) and model-view (0x0480) when D3D's composite is absent
+  (`RECOMP_FFP_COMPOSITE`, an opt-in experiment). It never engaged -- those
+  registers are zero on the stage's MODE 0 batches, so the title's transform
+  is not there either; no `fixed-function transform:` line appeared and the
+  frames were unchanged. `RECOMP_BATCH_CLASS` does show large MODE 0 batches
+  taking the SCREEN path with model-space vertices (a 291-vertex strip at
+  v0 y = 8000.01, and 1848-vertex prim-5 meshes at v0 -40 -359), so the next
+  run should use `RECOMP_BATCH_CLASS=200` to reach the stage and see whether
+  the floor is one of them.
+- The dropped batches are **not** the terrain. A new `RECOMP_XF_DROP=<n>`
+  reports the first n fixed-function batches thrown away as "not screen-space",
+  with the reason (fetch-failed / off-surface / object-space span) and the full
+  transform context. On a `to-stage` run all eight reported drops are
+  `fetch-failed` (`v0 0 0 0 1`, span 0 x 0, `inline 0`): stride-0 vertex arrays
+  the title submits as deliberate no-op strips, exactly the shape the 2026-10-27
+  census recorded (`SET_VERTEX_DATA_ARRAY_FORMAT` of stride 0). So the 68,601
+  "skipped as not screen-space" batches in a 150 s stage run are those strips,
+  not geometry waiting on a transform. Whoever continues should stop chasing a
+  composite matrix for them.
+- What the ground likely is, from `RECOMP_GL_PROBE` (2026-10-29, above): the
+  only batch covering a ground pixel was a 525-vertex **program** batch
+  (`mode 0x2`) with `z 9.88e9` (`0x50169...`) and `rhw 1`, i.e. a depth far past
+  the 2^24 divisor, so it loses every depth test and cannot paint. That points
+  at the **vertex program's depth output** (or the divisor) for the terrain,
+  not at a missing or untransformed mesh. The next measurement is the
+  `RECOMP_XF_BAD` / `[GLST]` record of the program batches whose transformed z
+  is out of range on the stage, matched against a ground pixel.
+- Also closed in this pass: the D3D8→D3D11 question. This title statically
+  links XDK D3D and never calls the toolkit's D3D8 layer (the layer is for a
+  title that calls the API; `docs/technical/pushbuffer-executor.md` says so).
+  A Windows D3D11 back end would sit behind the *same* executor decoder and
+  would not answer a missing-batch question; the CPU rasteriser is already the
+  reference by project rule, and `RECOMP_PB_GL=0` is how to reach it. Not done.
+

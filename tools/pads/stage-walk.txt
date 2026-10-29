@@ -6,16 +6,44 @@
 # the two rather than holding both: Otogi locks the camera during its own
 # cinematics and a hold that starts inside one is swallowed.
 #
-# Include with the to-stage timeline above; this file is appended to it by
-# tools/capture.sh (scenario "stage-walk" = to-stage + this file).
+# A taps continue every 3 s through the walk on purpose. The title puts up its
+# own 再開 / Retire prompt a few seconds after the landing with no pad input at
+# all (docs/BOOT_LOG.md, 2026-10-29), and an A is what dismisses it; without
+# them the capture ends on that prompt and the walk never happens.
 150000:lup:12000
+153000:A:300
+156000:A:300
+159000:A:300
+162000:A:300
+165000:A:300
+168000:A:300
 170000:rdown:4000
-176000:lup:10000
-190000:rdown:4000
-196000:lup:10000
-210000:rdown:4000
-216000:lup:10000
-230000:rdown:4000
-236000:lup:8000
+171000:A:300
+174000:A:300
+177000:lup:10000
+180000:A:300
+183000:rdown:4000
+186000:A:300
+189000:A:300
+190000:lup:10000
+193000:rdown:4000
+196000:A:300
+199000:A:300
+202000:lup:10000
+205000:rdown:4000
+208000:A:300
+211000:A:300
+214000:rdown:4000
+217000:lup:10000
+220000:A:300
+223000:rdown:4000
+226000:A:300
+229000:A:300
+232000:lup:10000
+235000:rdown:6000
+241000:A:300
+244000:lup:10000
+247000:A:300
 250000:rdown:6000
-258000:lup:10000
+256000:A:300
+259000:A:300

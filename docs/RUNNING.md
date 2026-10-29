@@ -96,6 +96,7 @@ instructions use; `AGENTS.md` § 7 has the complete set.
 | `RECOMP_TEX_DUMP=<prefix>` | Write every distinct texture the executor samples as a BMP, through the sampler |
 | `RECOMP_PB_GL_TEXREFRESH=<n>` | Re-upload bound textures every n frames, for a title that rewrites one in place |
 | `RECOMP_XF_FLAT=<n>` | Print the batches that lose every triangle and land on screen, with their inputs and vertex program |
+| `RECOMP_XF_DROP=<n>` | The first n fixed-function batches dropped as "not screen-space", with the reason (fetch-failed / off-surface / object-space span) and the full transform context — the census behind "N batches skipped as not screen-space" |
 | `RECOMP_VSH_DUMP=1` | Disassemble each vertex program the title uploads |
 
 On a headless box, run the window under `Xvfb`.

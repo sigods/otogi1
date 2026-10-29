@@ -41,9 +41,5 @@ calls.txt
 # Docs assets — committed (the blanket *.png above is for run artifacts)
 !docs/img/*.png
 
-# Maintainer reference capture of the original game (YouTube still), not ours
-# to redistribute. Kept on disk, never committed.
-docs/img/gameplay.png
-
 # Capture runs — reproduce with tools/capture.sh, never commit
 /runs/
