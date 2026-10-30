@@ -1479,3 +1479,21 @@ Template:
 - Still open: the movie draws black (`KNOWN_ISSUES.md`) and the run still does
   not reach the stage with this timeline — the GL mode histogram at frame 3000
   is `0 x88581 1 x29279`, where the stage reports modes 4 and 6 as well.
+
+## 2026-10-30 — correction: the per-bind hash is not what collapses the movie
+
+- The entry above attributes the movie's 0.33 fps to the per-bind texture hash,
+  on a comparison that was not like for like. The numbers do not support it:
+  `terr4` (pre-fix binary, **no frame dumps**) ran at 19.7 fps, and `perf1`
+  (post-fix, no dumps) at 18.5-22.6 fps. The 0.33 fps shows up only in runs
+  with `RECOMP_FB_DUMP` set — `stage2` before the fix (6.2 fps decaying to
+  0.33) and `stage3` after it (7.1 decaying to 0.34).
+- So the once-per-frame hash stands as a cost reduction (sampling 1.2 MB per
+  bind is wasteful whatever the frame rate) but it is **not** the cure, and
+  the movie stall is still unexplained. `docs/KNOWN_ISSUES.md` keeps it open.
+- Next measurement, narrow: the same timeline and pad script, `RECOMP_FB_DUMP`
+  on and off, and `RECOMP_FB_DUMP_STRIDE=1` against `30`, to separate the dump
+  itself from the flip it hangs off. `stage3` also ran the full 180 s of pad
+  script while producing only 930 flips and never left the movie, so the title
+  is stalled, not merely slow — the dump path is where to look, and a
+  `RECOMP_GATE_TRACE` run in that state would say whether it is a wait.
