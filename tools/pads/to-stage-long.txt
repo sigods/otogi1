@@ -2,95 +2,60 @@
 #
 # The 85 s cutoff in to-stage.txt assumes the stage is up by then. When the
 # title reaches the pre-stage movie later, the run sits in it for the rest of
-# the capture (docs/BOOT_LOG.md, 2026-10-30). This timeline keeps tapping A so
-# one of the presses lands inside the movie and skips it. In gameplay an A is
-# an attack, which is harmless for a static capture.
-1500:START:300
-3500:START:300
-5000:A:300
-6200:A:300
-7400:A:300
-8600:A:300
-9800:A:300
-11000:A:300
-12200:A:300
-13400:A:300
-14600:A:300
-15800:A:300
-17000:A:300
-18200:A:300
-19400:A:300
-20600:A:300
-21800:A:300
-23000:A:300
-24200:A:300
-25400:A:300
-26600:A:300
-27800:A:300
-29000:A:300
-30200:A:300
-31400:A:300
-32600:A:300
-33800:A:300
-35000:A:300
-36200:A:300
-37400:A:300
-38600:A:300
-39800:A:300
-41000:A:300
-42200:A:300
-43400:A:300
-44600:A:300
-45800:A:300
-47000:A:300
-48200:A:300
-49400:A:300
-50600:A:300
-51800:A:300
-53000:A:300
-54200:A:300
-55400:A:300
-56600:A:300
-57800:A:300
-59000:A:300
-60200:A:300
-61400:A:300
-62600:A:300
-63800:A:300
-65000:A:300
-66200:A:300
-67400:A:300
-68600:A:300
-69800:A:300
-71000:A:300
-72200:A:300
-73400:A:300
-74600:A:300
-75800:A:300
-77000:A:300
-78200:A:300
-79400:A:300
-80600:A:300
-81800:A:300
-83000:A:300
-84200:A:300
-# Past 85 s the content is the attract movie on most runs, and only
-# START skips it -- A walks menus and attacks in the stage. One tap
-# every 6 s is enough to catch the movie and leaves the stage running
-# most of the time; a tap that lands in gameplay pauses, the next resumes.
-90000:START:300
-96000:START:300
-102000:START:300
-108000:START:300
-114000:START:300
-120000:START:300
-126000:START:300
-132000:START:300
-138000:START:300
-144000:START:300
-150000:START:300
-156000:START:300
-162000:START:300
-168000:START:300
-174000:START:300
-180000:START:300
+# the capture (docs/BOOT_LOG.md, 2026-10-30). Keeping the taps going gives a
+# press inside the movie one more chance to land; in gameplay an A is an
+# attack, which is harmless for a static capture.
+#
+# START past 85 s was tried and does not help: perf2 ran 150 s at a steady
+# 21 fps with a START every 6 s and its GL mode histogram was still
+# `0 x86763 1 x28673` at frame 3000, i.e. still the movie, so the title is
+# stalled there rather than merely slow. See the correction entry in
+# docs/BOOT_LOG.md, 2026-10-30.
+86000:A:300
+88000:A:300
+90000:A:300
+92000:A:300
+94000:A:300
+96000:A:300
+98000:A:300
+100000:A:300
+102000:A:300
+104000:A:300
+106000:A:300
+108000:A:300
+110000:A:300
+112000:A:300
+114000:A:300
+116000:A:300
+118000:A:300
+120000:A:300
+122000:A:300
+124000:A:300
+126000:A:300
+128000:A:300
+130000:A:300
+132000:A:300
+134000:A:300
+136000:A:300
+138000:A:300
+140000:A:300
+142000:A:300
+144000:A:300
+146000:A:300
+148000:A:300
+150000:A:300
+152000:A:300
+154000:A:300
+156000:A:300
+158000:A:300
+160000:A:300
+162000:A:300
+164000:A:300
+166000:A:300
+168000:A:300
+170000:A:300
+172000:A:300
+174000:A:300
+176000:A:300
+178000:A:300
+180000:A:300

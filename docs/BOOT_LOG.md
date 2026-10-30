@@ -1497,3 +1497,24 @@ Template:
   script while producing only 930 flips and never left the movie, so the title
   is stalled, not merely slow — the dump path is where to look, and a
   `RECOMP_GATE_TRACE` run in that state would say whether it is a wait.
+
+## 2026-10-30 — START does not get past the movie; the title is stalled there
+
+- Measured on the fixed build with frame dumping **off**, so the dump path is
+  not in play: `perf2` ran 150 s at a steady 21 fps (3427 flips), read the
+  movie file 409 times, and its GL mode histogram at frame 3000 is
+  `0 x86763 1 x28673`. A run that reaches the stage reports modes 4 and 6 as
+  well (`drw1`: `0 x1273072 1 x726797 4 x161805 6 x270`).
+- The pad script pressed START every 6 s from 90 s to 180 s. `stage3` (same
+  script, frame dumps on) consumed all 180 s of pad time while producing only
+  930 flips. So START is not the lever, and the movie is not merely slow: the
+  title does not leave it, whatever the frame rate. `RECOMP_FB_DUMP` makes the
+  symptom worse by an order of magnitude but is not the cause either.
+- This makes the XMV path the critical path for M5, not a side issue: no
+  capture reaches the stage while it holds, and the 2026-10-30 timing above
+  says the run's own clock keeps advancing while the title does not.
+- `tools/pads/to-stage-long.txt` goes back to A taps (the START variant is
+  recorded here as falsified, with the histogram, so it is not retried).
+- Next measurement: `RECOMP_GATE_TRACE=1` on a run in this state, to see what
+  the title is waiting on when it should be leaving the movie, and a
+  `RECOMP_TEX_DUMP`/`DRAW_LOG` pass over the 640x480 surfaces the movie binds.
