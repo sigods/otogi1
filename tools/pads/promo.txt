@@ -1,0 +1,6 @@
+# Opening promo: no input while the intro plays, so the title's movie is not
+# skipped. START at 100 s only to prove the run is still alive afterwards.
+#
+# The normal to-stage timeline presses START at 1.5 s and 3.5 s, which skips
+# the intro movie -- that is why a capture built from it never shows the XMV.
+100000:START:300

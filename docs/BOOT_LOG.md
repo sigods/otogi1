@@ -1412,3 +1412,47 @@ Template:
   constant dots + extra constants + combiner words + per-stage texture alpha
   sampling + blend/depth state line, and the two clip counters.
 
+
+## 2026-10-30 — the attract movie is the wall: no run so far reaches the stage
+
+- Phase: front end / pre-stage movie, OpenGL back end.
+- What happened: every capture started with the `to-stage` timeline today
+  stalls in the title's own attract movie. `terr4` (210 s, no frame dumps)
+  spent the run reading the movie file (`[READ] from=0x000E1BDC` 752 times)
+  and its GL mode histogram at frame 3000 is `0 x92562 1 x30606`, where a run
+  that does reach the stage reports `0 x1273072 1 x726797 4 x161805 6 x270`
+  (`drw1`, 2026-10-29). The movie is black on this back end
+  (`KNOWN_ISSUES.md`), so the screen says nothing about which state the run is
+  in — the histogram is the only marker that told these runs apart.
+- Consequence for the record: the drop census those runs printed is
+  *movie-era*, not stage-era. The reading "0 batches skipped as not
+  screen-space, 0 vertices off-screen/NaN" describes the movie and does **not**
+  settle the 2026-10-27 question of whether the stage's terrain is thrown away
+  by `batch_is_screen_space()`. That still needs a census gated to a stage
+  batch id; `RECOMP_XF_DROP_AT` and `RECOMP_BATCH_CLASS_AT` were added today
+  for exactly that (every earlier census spent its budget in the menus).
+- Consequence for the timeline: `tools/pads/to-stage.txt` presses A every
+  1.2 s only up to 85 s and relies on one of those presses skipping the
+  pre-stage movie. When the title reaches the movie later than that, the run
+  sits in it for the rest of the capture. Until the movie is fixed — or the
+  timeline is made to react to the screen — a stage capture is a coin toss.
+- Two alpha A/B runs were started on 2026-10-29 and never read; both are
+  unusable as written. `RECOMP_GL_NO_ALPHA=1` (`noalpha`) collapses the title
+  to ~1.7 fps and `RECOMP_GL_ALPHA_ONE=1` (`aone2`) to 0.3 fps, because every
+  fragment the alpha test normally discards now draws and blends; neither
+  reaches a stage frame inside a 200 s timeout. The alpha question is still
+  open at the stage, and the next attempt has to gate on a stage flip rather
+  than on a wall clock.
+- The X8R8G8B8 sampling change was reverted. Returning the X byte as alpha
+  instead of 1.0 was left in the tree to explain the movie quad painting black
+  over the film; the movie is still black with it in place (maintainer,
+  2026-10-30), so it explained nothing and silently changed the semantics of
+  every X8 texture in the run.
+- Diagnostics restored to the tree (they were uncommitted, and a revert during
+  this session dropped them): `RECOMP_TEXHEX`, `RECOMP_DRAW_LOG[_N]`, the
+  XFBAD raw-bytes dump with c[0..3], and the XFDROP fetch-failed filter.
+- Note on `RECOMP_DRAW_LOG`: it stops after 40 batches by default and those 40
+  are spent in the front end. The 32x64 `A8R8G8B8` texture at `0x814C2000`
+  that the 2026-10-29 entries call the terrain's was reported from *those menu
+  draws*; its stage draws were never printed. Raise `RECOMP_DRAW_LOG_N` and
+  gate the report to a stage batch before treating that texture as the ground.

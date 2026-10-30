@@ -57,6 +57,16 @@ surface.
   visible = GL upload bug; CPU invisible = data/upstream), and
   `RECOMP_XF_BAD` now prints each stage's sampled alpha range per flagged
   batch to name the texture.
+- **The stage-era census is still missing (2026-10-30):** the two drop
+  censuses taken today never reached the stage — every capture with the
+  `to-stage` timeline stalled in the attract movie, whose GL mode histogram is
+  `0 x92562 1 x30606` at frame 3000 where a stage run reports
+  `0 x1273072 1 x726797 4 x161805 6 x270`. So the "0 batches skipped as not
+  screen-space" reading describes the movie, and the 2026-10-29 conclusion
+  above ("not the dropped batches") still rests on runs whose stage arrival is
+  not established. `RECOMP_XF_DROP_AT` / `RECOMP_BATCH_CLASS_AT` now take a
+  starting batch id so the census can be aimed at the stage; that measurement
+  is the next step, and it needs a capture that actually arrives.
 - **Where the fix belongs:** likely `nv2a_pb_exec.c` (texture decode or
   surface write path) or upstream in the toolkit's texture upload; not the
   vertex transform, which is verified correct.
@@ -147,9 +157,20 @@ different fault and the first two fixes only looked like each other.
   the title's own content there is a constant and the GL cache is not holding
   an old frame. `BOOT_LOG.md`, 2026-10-28, "the screen-sized surface is
   constant on both back ends".
-- **Status:** open, not scheduled. It is the title's only movie, so it can be
-  skipped for gameplay work (the START taps a pad script issues do exactly
-  that); the pre-stage movie is skipped the same way.
+- **It now blocks stage work (2026-10-30):** the movie is no longer just a
+  cosmetic gap. Every `to-stage` capture started today sat in the attract
+  movie for its whole run (`terr4` read the movie file 752 times in 210 s),
+  because the timeline's A presses stop at 85 s and the title reaches the
+  movie later than that on this machine. Since the movie draws black on the
+  GL back end, the screen cannot say which state a run is in. Fixing the movie
+  is now on the critical path to the floor, not beside it.
+- **The X8 alpha change did not fix it (2026-10-30):** returning the X byte of
+  an `X8R8G8B8` texel as alpha instead of 1.0 was left in the tree for this
+  movie; the movie is still black with it in place, so it was reverted rather
+  than kept as an unexplained semantic change. `BOOT_LOG.md`, 2026-10-30.
+- **Status:** open. It is the title's only movie, so it can be skipped for
+  gameplay work when the timeline actually reaches it; the pre-stage movie is
+  skipped the same way. As of 2026-10-30 that skip is unreliable.
 - **Where the fix belongs:** the OpenGL back end's texture cache and the
   screen-space batch path (`src/nv2a/nv2a_pb_gl.c`), or the executor's texture
   state if the batch is handed the wrong buffer. A dirty-page hook on guest
