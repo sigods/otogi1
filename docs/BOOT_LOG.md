@@ -1518,3 +1518,22 @@ Template:
 - Next measurement: `RECOMP_GATE_TRACE=1` on a run in this state, to see what
   the title is waiting on when it should be leaving the movie, and a
   `RECOMP_TEX_DUMP`/`DRAW_LOG` pass over the 640x480 surfaces the movie binds.
+
+## 2026-10-30 — bisect: the stall is not from this session's or yesterday's edits
+
+- `xboxrecomp` was rebuilt at `4e5f71c`, the submodule commit the last run that
+  reached the stage came from, and run with the same no-dump timeline: GL mode
+  histogram at frame 3000 `0 x85764 1 x28340`, 18.7-20.6 fps, 3644 flips, no
+  stage modes — indistinguishable from the current build's `0 x86763 1 x28673`
+  at 21 fps. The only toolkit-side differences between the two are the
+  2026-10-29/30 uncommitted changes (texture hash, TEXHEX/DRAW_LOG), so those
+  are not the cause of the stall.
+- Maintainer observation, not yet measured: the title goes slow **after
+  clicking Load save**, and that is the screen the A taps land on — the
+  `noalpha`, `terr2` and `terr3` frame dumps all show "Load Game — Please
+  select a save game". That redirects the suspicion from the movie to the save
+  load: a kernel wait or a file read that times out, rather than the XMV path.
+- `RECOMP_GATE_TRACE=1` over 90 s of this state produced 5623 lines, every one
+  `[gate] signal object=0x00106B6C` — one object signalled continuously, no
+  wait records. A trace taken across the Load save click, and
+  `RECOMP_FRAME_TRACE`, are the next measurements.
