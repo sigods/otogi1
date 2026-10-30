@@ -1456,3 +1456,26 @@ Template:
   that the 2026-10-29 entries call the terrain's was reported from *those menu
   draws*; its stage draws were never printed. Raise `RECOMP_DRAW_LOG_N` and
   gate the report to a stage batch before treating that texture as the ground.
+
+## 2026-10-30 — the movie's 0.33 fps was the GL texture hash, run once per bind
+
+- Phase: attract movie, OpenGL back end.
+- Symptom: every capture made after the 2026-10-29 GL change crawled inside the
+  movie at 0.3-6 fps and never reached the stage; `drw1` (22:31 that day, before
+  the change) ran at 24-42 fps on the same timeline.
+- Cause: `stage_bind()` in `src/nv2a/nv2a_pb_gl.c` hashed the bound texture's
+  whole source (`pitch * height`) on **every** bind, to notice a buffer the
+  title rewrites in place. A 640x480 surface is 1.2 MB with its pitch and the
+  movie binds one several hundred times a frame, so the check cost hundreds of
+  megabytes of hashing per frame.
+- Fix: the hash is sampled at most once per texture per frame
+  (`GlTex.hash_frame` / `live`), and a streamed (`YUY2`/`UYVY`) source is
+  re-uploaded at most once per frame (`upload_frame`). Frame granularity is
+  also the correct one: a decoded video frame or a written-back surface changes
+  between frames, not between binds.
+- Measured: same timeline, no frame dumps, 120 s — **18.5-22.6 fps**
+  (1741-3603 flips) with 443 movie reads, against 6.2 fps decaying to 0.33 fps
+  before the fix (`stage2`).
+- Still open: the movie draws black (`KNOWN_ISSUES.md`) and the run still does
+  not reach the stage with this timeline — the GL mode histogram at frame 3000
+  is `0 x88581 1 x29279`, where the stage reports modes 4 and 6 as well.
