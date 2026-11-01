@@ -93,7 +93,10 @@ $ cmake --build build-linux -j8
 Output: `build-linux/bin/otogi1`, about 19 MB.
 
 On Windows, substitute the MinGW cross-build or the MSVC generator — both are
-in [`RUNNING.md`](RUNNING.md). From Git Bash, pass parallelism via CMake
+in [`RUNNING.md`](RUNNING.md). The MinGW cross-build is verified without a
+source change; the MSVC generator is verified with the `clock_gettime` guard in
+[`KNOWN_ISSUES.md`](KNOWN_ISSUES.md), and it needs the C++ workload and CMake
+(`RUNNING.md`, prerequisites). From Git Bash, pass parallelism via CMake
 `--parallel`, **not** `-- /m` (Git Bash rewrites `/m` to `M:/`).
 
 ## Step 7 — run and read stderr

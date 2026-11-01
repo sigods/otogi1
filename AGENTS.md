@@ -36,8 +36,11 @@ Read this file first, every session. Then `docs/INDEX.md`.
 - Linux x86-64 is the primary and verified path; SDL2 and libepoxy provide the
   video, audio and window backend.
 - The MinGW-w64 cross-build is the verified Windows path and reaches the same
-  milestone under Wine. MSVC 2022 is supported but untested: Windows uses
-  Direct3D 11, DXGI and XAudio2 from the Windows SDK, so no SDL2 is required.
+  milestone under Wine. MSVC 2022 (Build Tools 2022, MSVC 19.44, Windows SDK
+  10.0.26100) builds and boots as well, once the `clock_gettime` guard in
+  `docs/KNOWN_ISSUES.md` is applied — the MinGW path is the one verified
+  without a source change. Windows uses Direct3D 11, DXGI and XAudio2 from the
+  Windows SDK, so no SDL2 is required.
 - Python 3.10+ with `capstone`.
 - CMake 3.20+, and a C11 compiler: GCC or Clang on Linux, MinGW-w64 for the
   verified Windows build, Visual Studio 2022 with the C/C++ desktop workload for
@@ -108,6 +111,7 @@ in the other 20% — stubs, indirect calls, and hardware-facing code.
 | `RECOMP_PB_EXEC` | Software NV2A push-buffer executor on/off |
 | `RECOMP_USB` | USB OHCI host + emulated pads on/off |
 | `RECOMP_AUTOPRESS` | Send START+A through the emulated pad (requires `RECOMP_USB`) |
+| `RECOMP_AUTOPAD` | Tap START and A from the keyboard bridge on a slow cycle — a headless test hook; its `clock_gettime` call is what breaks the MSVC build |
 | `RECOMP_PAD_LIVE` | Drive the title headless from a live pad |
 | `RECOMP_PB_GL` | OpenGL push-buffer back end; `RECOMP_PB_GL=0` keeps the CPU rasteriser |
 | `RECOMP_XF_THREADS` | Vertex-transform workers (default cores-1, max 8) |

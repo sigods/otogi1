@@ -49,7 +49,7 @@ the earlier screenshots used.
 
 | Component | State | Notes |
 |---|---|---|
-| Builds | Works | Native Linux binaries; MinGW-w64 cross-build for Windows verified; MSVC 2022 documented, not yet run. `tools/smoke.sh build-linux` passes. |
+| Builds | Works | Native Linux binaries; MinGW-w64 cross-build and MSVC 2022 build for Windows verified. The MSVC build needs one source fix in the toolkit ([`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md)). `tools/smoke.sh build-linux` passes. |
 | Boot | Works | Loads the XBE, reaches `[AV] SetDisplayMode`, runs the main loop, shows the logos and the title screen. No crash. |
 | Kernel | Works | Threads, KEVENTs, the NV2A fence event, and asynchronous `NtReadFile` (`RECOMP_SYNC_IO=1` restores inline completion). |
 | File I/O | Works | All XBE sections, assets, and the title's packed `.dev`/`.000` archives. |
@@ -92,11 +92,14 @@ The open blockers behind these limits are tracked in [`docs/KNOWN_ISSUES.md`](do
 - **The OpenGL back end approximates the material path.** It samples texture stage 0 and multiplies by the interpolated vertex colour; the CPU rasteriser evaluates the title's register combiners and fog. Titles or scenes whose look depends on those draw differently, and the stage world's materials are untested against a correct reference.
 - **The save file is not documented.** Creating and loading a save work. The file's location and format are not recorded yet.
 - **No DSP effects.** The DSP is a passthrough stub, so the mixed output is produced but the title's audio effects are not emulated.
-- **The MSVC 2022 path is untested.** The MinGW-w64 cross-build is the verified Windows path.
+- **The MSVC 2022 build needs one source fix.** With the `clock_gettime` guard
+  in [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) applied it builds, boots and
+  produces audio; without it the build stops in the toolkit's input layer. The
+  MinGW-w64 cross-build is the path verified without a source change.
 
 ## Requirements
 
-- Linux x86-64, or Windows x86-64 (the MinGW cross-build is the verified Windows path; MSVC 2022 is supported but untested).
+- Linux x86-64, or Windows x86-64. The MinGW cross-build is verified without a source change; the MSVC 2022 build is verified with the one `clock_gettime` guard in [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
 - CMake 3.20+, a C11 compiler, and Ninja. The build commands below pass `-G Ninja`; drop that flag to use CMake's default generator.
 - On Linux only: SDL2 and libepoxy for the video, audio and window path. Windows uses Direct3D 11 and XAudio2 from the Windows SDK instead.
 - Python 3.10+ with `capstone` — `regen.sh` drives the toolkit's Python tools.
@@ -104,6 +107,22 @@ The open blockers behind these limits are tracked in [`docs/KNOWN_ISSUES.md`](do
 - The recompiled C in `src/game/recomp/gen/`, produced by `regen.sh`. It is generated, not tracked.
 
 The runtime toolkit is a submodule at `xboxrecomp/`; no separate checkout is needed.
+
+On Windows the MSVC path needs Visual Studio 2022 with the **Desktop development
+with C++** workload (or the standalone **Build Tools** with the `VCTools`
+workload), the Windows SDK, and CMake. A Visual Studio install does not imply
+the C++ toolset — an install without it has `MSBuild` and no `cl.exe`. Check:
+
+```powershell
+& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+    -latest -products * -require Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+    -property installationPath
+```
+
+Empty output means the workload is missing. Reserve about 8 GB free: with less,
+the workload installer's pre-check fails with exit code `-2147024784`
+(`0x80070070`, `ERROR_DISK_FULL`) and prints nothing to the console. The
+standalone Build Tools plus the SDK are about 5 GB installed.
 
 ## Step by step
 
@@ -117,7 +136,7 @@ POSIX shell — Linux, or Git Bash on Windows.
    | Python | 3.10 or newer | runs the toolkit's Python tools |
    | capstone | 5.x | `python3 -m pip install --user capstone` |
    | CMake | 3.20 or newer | |
-   | C compiler | C11 | GCC or Clang on Linux; MinGW-w64 for the verified Windows build |
+   | C compiler | C11 | GCC or Clang on Linux; MinGW-w64, or MSVC 19.4x from Visual Studio 2022 Build Tools, for the verified Windows build |
    | Ninja | recommended | the commands below pass `-G Ninja`; drop it to use the default generator |
    | SDL2, libepoxy | Linux only | video, audio and window path |
 
@@ -216,18 +235,28 @@ Steps 1–3 are the same. `regen.sh` is a POSIX shell script, so run step 4 once
   $ cmake --build build-win -j8
   ```
 
-  The result is `build-win/bin/otogi1.exe`.
-
-- **MSVC 2022 — supported, untested.** Needs the *Desktop development with C++* workload; the Windows SDK supplies Direct3D 11, DXGI, `d3dcompiler` and XAudio2, so no SDL2 is required:
+  The result is `build-win/bin/otogi1.exe`.- **MSVC 2022 — verified, with one source fix.** Built with Visual Studio Build
+  Tools 2022 (MSVC 19.44, Windows SDK 10.0.26100) and CMake 3.31. Until the
+  `clock_gettime` guard in [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) lands
+  in the toolkit, the build stops in `xboxrecomp/src/input/keyboard.c`. The
+  Windows SDK supplies Direct3D 11, DXGI, `d3dcompiler` and XAudio2, so no SDL2
+  is required:
 
   ```
   cmake -S . -B build -G "Visual Studio 17 2022" -A x64
   cmake --build build --config Release --parallel
   ```
 
-  The result is `build\bin\Release\otogi1.exe`.
+  The result is `build\bin\Release\otogi1.exe`, about 11 MB. CMake finds a
+  non-default install through `vswhere`; when it does not,
+  `-DCMAKE_GENERATOR_INSTANCE="C:\BuildTools"` names it. The build also produces
+  the toolkit's four `d3d8_*` smoke executables and about a hundred warnings
+  (`C4005`, `C4100`, `C4996`, `C4457`) that are not failures. `/bigobj` is
+  already set for `otogi1` and is what lets the generated chunks compile — keep
+  it.
 
-Run from the project root, like on Linux:
+Run **from the project root**, not from inside `build\`: the binary opens
+`game/default.xbe` relative to the current directory.
 
 ```
 ./build-win/bin/otogi1.exe # MinGW cross-build
@@ -253,6 +282,7 @@ Every switch is an environment variable, read once at startup. The table below l
 - [`docs/FAQ.md`](docs/FAQ.md) — the short answers, if you want them first.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — which layer owns a behaviour.
 - [`docs/PIPELINE.md`](docs/PIPELINE.md) — the toolchain, step by step.
+- [`docs/MSVC_2022.md`](docs/MSVC_2022.md) — the Windows MSVC 2022 build and boot record.
 - [`docs/RUNNING.md`](docs/RUNNING.md) — building, running and recording the executable, in long form.
 - [`docs/TITLE_OTOGI.md`](docs/TITLE_OTOGI.md) — title facts and open unknowns.
 - [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) — what is blocking progress now.
@@ -264,7 +294,7 @@ Every switch is an environment variable, read once at startup. The table below l
 
 - If the black screen after New Game appears, capture stderr (`./build-linux/bin/otogi1 2>stderr.txt`) and send the lines around `[KERNEL] ordinal 175` ([`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md)).
 - Name kernel ordinal 175 from the toolkit's export table under `xboxrecomp/` and record it in [`docs/BOOT_LOG.md`](docs/BOOT_LOG.md).
-- Build with MSVC 2022 and report the result — that path is supported but has never been run.
+- Carry the `clock_gettime` guard from [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) into the toolkit and offer it upstream — it is the only thing between the MSVC 2022 build and a clean build.
 - Run `./tools/smoke.sh` on another distribution and report any assertion that fails.
 - Correct or extend a page in [`docs/`](docs/INDEX.md).
 - Pick a milestone in [`ROADMAP.md`](ROADMAP.md) and open an issue naming it.

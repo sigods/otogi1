@@ -272,12 +272,39 @@ different fault and the first two fixes only looked like each other.
 - **Status:** open. Where the save is written, what it contains, and whether it persists across runs are not recorded.
 - **Where the fix belongs:** not applicable until a failure is recorded.
 
-## The MSVC 2022 build is untested
+## MSVC: the input layer calls POSIX `clock_gettime`
 
-- **Symptom:** none recorded; the path has never been run.
-- **Evidence:** [`../README.md`](../README.md) § Step by step, "MSVC 2022 — supported, untested".
-- **Status:** open. A successful build and boot would close it.
-- **Where the fix belongs:** the build configuration, if anything fails.
+- **Symptom:** the MSVC 2022 build stops with
+  `xboxrecomp\src\input\keyboard.c(189,27): error C2065: 'CLOCK_MONOTONIC':
+  identifier undeclared` and the same error on line 190; nothing else in the
+  Windows build fails to compile.
+- **Cause:** the `RECOMP_AUTOPAD` headless hook in `xbox_InputKeyboardState()`
+  calls `clock_gettime(CLOCK_MONOTONIC, …)` unguarded. MSVC has `struct
+  timespec` but neither `clock_gettime()` nor `CLOCK_MONOTONIC`. It is the only
+  unguarded site the MSVC build compiles: the other `clock_gettime` calls are
+  behind `_WIN32` arms or in POSIX-only sources (`apu_wav.c`, `host_time.c`, the
+  SDL2 back ends), and `src/platform/win32_compat.c` is not compiled on `WIN32`
+  at all because `platform` is an INTERFACE target there.
+- **Workaround used to verify the rest of the path:** a forced-include shim
+  outside the tree (`cl /FI shim.h`) mapping `clock_gettime` onto
+  `QueryPerformanceCounter`. With it the build is clean — 0 errors, about 100
+  benign warnings — and the title boots.
+- **Verified with the workaround (2026-10-31, Build Tools 2022 17.14.44, MSVC
+  19.44.35229, Windows SDK 10.0.26100.0):** `[AV] SetDisplayMode
+  mode=0x080F0D12 format=0x00000012 pitch=2560 fb=0x00404000`, the promo XMV
+  read, the main loop still running after 25 s with no access violation,
+  `[OHCI0] raised 00000002 -> ISR claimed it` with `RECOMP_USB=1`, and
+  non-silent audio through XAudio2 (`[XA2] XAudio2 initialized (48000 Hz stereo
+  16-bit …)`, captured WAV peak 19478/32768, 39.1 % non-zero). That is all five
+  `tools/smoke.sh` invariants, and the same state the Linux path reaches. Input,
+  save creation and the stage's floor are the same open issues as on Linux.
+  Full record: [`MSVC_2022.md`](MSVC_2022.md).
+- **Where the fix belongs:** the `xboxrecomp` toolkit, `src/input/keyboard.c` —
+  not this repository. Guard the hook with `#ifndef _WIN32`, or move it onto
+  the toolkit's host-time abstraction (`src/platform/host_time.h`).
+- **Status:** open. The docs no longer call the path untested: the build and
+  boot are verified, and the guard above is the only source change between
+  them and a stock checkout.
 
 ## Audio effects are not emulated
 

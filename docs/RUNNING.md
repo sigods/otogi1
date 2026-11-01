@@ -27,17 +27,45 @@ $ cmake --build build-win -j8
 
 Output: `build-win/bin/otogi1.exe`.
 
-### Windows — MSVC 2022, supported but untested
+### Windows — MSVC 2022 (Build Tools), verified
 
-Needs the *Desktop development with C++* workload. The Windows SDK supplies
-Direct3D 11, DXGI, `d3dcompiler` and XAudio2, so no SDL2 is required. This path
-has never been run; see [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md).
+Built and booted with Visual Studio Build Tools 2022 (MSVC 19.44, Windows SDK
+10.0.26100) and CMake 3.31. The Windows SDK supplies Direct3D 11, DXGI,
+`d3dcompiler` and XAudio2, so no SDL2 is required.
+
+A Visual Studio install does not imply the C++ toolset: an install with only
+`MSBuild` has no `cl.exe`, and CMake's Visual Studio generator has no toolset to
+use. The build needs
+
+- the *Desktop development with C++* workload in the IDE, or the standalone
+  **Build Tools** with `Microsoft.VisualStudio.Workload.VCTools` (about 5 GB
+  with the SDK; reserve 8 GB free),
+- CMake, from the *C++ CMake tools for Windows* component, the standalone
+  installer, or `choco install cmake` — it is not installed by default,
+- the Windows SDK (installed with either workload).
+
+Check the toolset before building; empty output means it is missing:
+
+```powershell
+& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+    -latest -products * -require Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+    -property installationPath
+```
+
+With 4 GB free the workload installer stops in its pre-check with exit code
+`-2147024784` (`0x80070070`, `ERROR_DISK_FULL`) and no console message.
+
+Until the `clock_gettime` guard in [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) lands in
+the toolkit, the build stops in `xboxrecomp/src/input/keyboard.c` with
+`error C2065: 'CLOCK_MONOTONIC'`.
 
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release --parallel
 
 
-Output: `build\bin\Release\otogi1.exe`.
+Output: `build\bin\Release\otogi1.exe`, about 11 MB. If CMake reports that the
+generator instance cannot be found, name it:
+`-DCMAKE_GENERATOR_INSTANCE="C:\BuildTools"`.
 
 ## Run
 
@@ -47,6 +75,7 @@ data.
 
 $ ./build-linux/bin/otogi1 # Linux
 $ ./build-win/bin/otogi1.exe # MinGW cross-build
+.\build\bin\Release\otogi1.exe # MSVC 2022
 
 
 It runs the title's main loop indefinitely; `Ctrl+C` ends it.
@@ -68,12 +97,12 @@ instructions use; `AGENTS.md` § 7 has the complete set.
 
 | Variable | Effect |
 |---|---|
-| `RECOMP_FB_WINDOW=1` | Open the SDL framebuffer window and present frames — Linux only |
+| `RECOMP_FB_WINDOW=1` | Open the SDL framebuffer window and present frames — Linux only; the Windows build has no SDL window |
 | `RECOMP_FB_DUMP_STRIDE=<n>` | Keep one frame in `n` from the dump sequence. Menus run at over a hundred frames a second and each BMP is most of a megabyte, so a dump left on for a whole run fills the disk before the scene of interest arrives; the frames kept are still consecutive |
 | `RECOMP_PB_EXEC=1` | Software NV2A push-buffer executor |
 | `RECOMP_USB=1` | OHCI controller and emulated pad |
 | `RECOMP_AUTOPRESS=1` | Send START+A through the emulated pad (needs `RECOMP_USB`) |
-| `RECOMP_AC97_READY=1` | MCPX APU and host audio output |
+| `RECOMP_AC97_READY=1` | MCPX APU and host audio output (SDL2 on Linux, XAudio2 on Windows — no SDL2 needed there) |
 | `RECOMP_AUDIO_WAV=path` | Capture the mixed output to a WAV file |
 | `RECOMP_SYNC_IO=1` | Complete `NtReadFile` inline (pre-audio-fix behaviour) |
 | `RECOMP_AUTOPRESS=1` | Tap START then A on the emulated pad (needs `RECOMP_USB`); `RECOMP_AUTOPRESS_PERIOD_MS` sets the A-tap period |
@@ -129,6 +158,23 @@ Re-checks the README's claims against an existing build: runs the title twice,
 once with audio capture and once with `RECOMP_USB=1`, and asserts the `[AV] SetDisplayMode`
 line, that the title is still running when the timeout stops it (no early exit, no segmentation fault), non-silent audio, and that the USB controllers appear only
 in the second run. Needs `game/` extracted.
+
+On Windows the script does not run: it is bash-only, calls `$BUILD/bin/otogi1`
+(no `.exe`, no `Release/`), and uses `mktemp`, `timeout` and `python3` for the
+WAV peak check. The manual equivalent, from the project root:
+
+```powershell
+$env:RECOMP_USB="1"; $env:RECOMP_AC97_READY="1"
+$env:RECOMP_AUDIO_WAV="R:\out.wav"; $env:RECOMP_AUDIO_WAV_SECS="8"
+$p = Start-Process .\build\bin\Release\otogi1.exe -PassThru `
+     -RedirectStandardError stderr.txt -RedirectStandardOutput stdout.txt
+Start-Sleep -Seconds 25
+if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }   # expected
+Select-String -Path stderr.txt -Pattern '\[AV\] SetDisplayMode'
+```
+
+A clean run does not exit on its own, so being killed at the timeout is the pass
+condition — the same thing `SMOKE_SECS` treats as passing.
 
 ## Differential debugging with xemu
 

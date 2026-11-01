@@ -56,8 +56,14 @@ the maintainer. See [`../CONTRIBUTORS.md`](../CONTRIBUTORS.md).
 ## Why Linux first?
 
 Linux x86-64 is the primary and verified path; the MinGW-w64 cross-build is the
-verified Windows path, and MSVC 2022 is supported but has not been run. Both
-platforms are covered in [`../README.md`](../README.md) § Requirements.
+Windows path verified without a source change, and the MSVC 2022 build is
+verified too — it builds, boots and produces audio once the `clock_gettime`
+guard in [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) is applied. Both platforms are
+covered in [`../README.md`](../README.md) § Requirements.
+
+If the MSVC build stops with `error C2065: 'CLOCK_MONOTONIC': undeclared
+identifier` in `xboxrecomp/src/input/keyboard.c`, that is the known fix, not a
+setup problem.
 
 ## Can I contribute without reverse-engineering experience?
 
