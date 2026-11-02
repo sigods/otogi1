@@ -1,8 +1,10 @@
 # The to-stage timeline, then play: walk forward and pitch the camera down.
 #
 # The left stick walks and the right stick turns the camera, so a hold of
-# `lup` moves the player through the grove and `rdown` aims the camera at the
-# floor under him -- which is the view the ground has to appear in. Alternate
+# `lup` moves the player through the grove and `rup` aims the camera at the
+# floor under him (right stick up pitches the view down -- `rdown` looks up at
+# the bamboo canopy, which is where every ground capture before 2026-10-30
+# spent its probe budget) -- which is the view the ground has to appear in. Alternate
 # the two rather than holding both: Otogi locks the camera during its own
 # cinematics and a hold that starts inside one is swallowed.
 #
@@ -17,33 +19,33 @@
 162000:A:300
 165000:A:300
 168000:A:300
-170000:rdown:4000
+170000:rup:4000
 171000:A:300
 174000:A:300
 177000:lup:10000
 180000:A:300
-183000:rdown:4000
+183000:rup:4000
 186000:A:300
 189000:A:300
 190000:lup:10000
-193000:rdown:4000
+193000:rup:4000
 196000:A:300
 199000:A:300
 202000:lup:10000
-205000:rdown:4000
+205000:rup:4000
 208000:A:300
 211000:A:300
-214000:rdown:4000
+214000:rup:4000
 217000:lup:10000
 220000:A:300
-223000:rdown:4000
+223000:rup:4000
 226000:A:300
 229000:A:300
 232000:lup:10000
-235000:rdown:6000
+235000:rup:6000
 241000:A:300
 244000:lup:10000
 247000:A:300
-250000:rdown:6000
+250000:rup:6000
 256000:A:300
 259000:A:300

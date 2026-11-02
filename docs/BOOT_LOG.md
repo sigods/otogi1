@@ -1537,3 +1537,488 @@ Template:
   `[gate] signal object=0x00106B6C` — one object signalled continuously, no
   wait records. A trace taken across the Load save click, and
   `RECOMP_FRAME_TRACE`, are the next measurements.
+
+## 2026-10-30 — the far plane is a clip, not a clamp; the wedges shrink, the floor stays missing
+
+- Phase: gameplay (start-game stage, OpenGL back end), toolkit at 1c16a7d.
+- **Change, and its reason.** `nv2a_pb_gl.c`'s vertex shader clamped window z to
+  [0,1] before rebuilding clip space (`gl_Position.z = clamp(z,0,1) * w`). A
+  vertex past the far plane then sits exactly on z = w: it is never clipped,
+  and the triangle it belongs to is drawn pinned to the far plane instead of
+  disappearing. Clipped by the hardware's own `z <= w` test it is gone. The
+  clamp is removed, so GL far-clips the way D3D does.
+- **Measured on the same pad timeline** (`stage-walk`, stride 2): a scan of
+  every 4th frame for the share of strongly coloured pixels (max-min > 110)
+  reports `s1` (before) **0.975** at its worst -- whole frames solid red with
+  only the HUD and the haze left -- against `s8` (after) **0.35**. The
+  full-frame solid-red captures are gone; the stage still reaches and renders
+  (84 s of pad time, player, bamboo, HUD), so the change is not a regression.
+- **What did not change:** the coloured wedges are still there on some frames
+  (`s8` f01416/f01820: blue/green/red vertical bands across the frame, straight
+  edges, vertex-colour interpolation). They are one huge triangle whose three
+  vertices carry R, G and B, not a textured mesh -- a batch that should not be
+  on screen at all. `RECOMP_GL_PROBE` at (100,100) on a 165 s run recorded
+  1200 covering batches, and every full-screen one is a legitimate fade quad
+  (colour `FFFFFFFF` easing to `19000000`, `alpha 204 ref 0`); the wedge was
+  not caught on that run's timeline, so naming its batch is still open.
+- **The floor is still absent on both back ends.** A `RECOMP_PB_GL=0` capture
+  (CPU rasteriser, `cpu1`) never left the title screen in 135 s at ~4 fps, and
+  the maintainer reports the CPU path draws no floor either -- so the question
+  is upstream of the back end, in the executor or in the title's data.
+- Next measurement, narrow: arm `RECOMP_FRAME_TRACE` on a frame that shows the
+  wedge (touch the flag file while the artifact is on screen), which lists
+  every batch of that frame with its texture, blend, triangle and pixel counts
+  -- the repeated red frames in `s1` (pad t ~59 s) are the timeline to aim at.
+
+## 2026-10-30 — the "terrain texture with empty alpha" is a petal sprite
+
+- The 2026-10-29 chain ended on "the terrain's stage-0 texture samples as
+  `alpha 0..201 (17/25 points zero)`", and that number has been the assumed
+  gate ever since. `RECOMP_TEX_DUMP` on a stage run (`tx1`, 55 distinct
+  textures) writes each sampled texture through the sampler, so the one that
+  produces those samples can be looked at rather than argued about:
+  - `814C2000` (32x64, fmt 06 SZ_A8R8G8B8) is a **single white-pink petal** on
+    a transparent field -- the falling blossom sprite. Its alpha is empty
+    everywhere except the petal, which is exactly the "0..201, mostly zero"
+    reading. It is not terrain.
+  - `826C1000` (128x128, fmt 06) is the HUD's snake medallion, `817D3000`
+    (512x256) the SEGA logo, `807D4000` (1024x1024 DXT1) the font page,
+    `81966000` (512x512 DXT3) the level-select thumbnails. Every one decodes
+    to a coherent image, so the swizzle, the DXT1/DXT3/DXT5 blocks and the
+    linear twins are all right.
+- So the previous conclusion is **withdrawn**: the terrain is not being
+  discarded by a transparent stage-0 texture. What that texture belongs to is a
+  sprite drawn with the same combiner words the terrain uses, which is how it
+  came to be mistaken for it.
+- **The combiner decode was checked against xemu itself**, not from memory:
+  `hw/xbox/nv2a/pgraph/glsl/psh.c` `parse_combiner_inputs()` takes
+  `a = value >> 24`, `b = >> 16`, `c = >> 8`, `d = value & 0xFF`; the final
+  stage is `rgb = d + mix(c, b, a)` with alpha `final_inputs_1 >> 8`, and
+  `parse_input()` reads `reg = v & 0xF`, `chan = v & 0x10`, `mod = v & 0xE0`.
+  `nv2a_combiner.c` and the GLSL copy match all of that field for field, so
+  `r0.a = v0.a * t0.a` and `out.a = read_alpha(f1 >> 8)` are right.
+- The one 2880-triangle batch that does cover the whole frame uses
+  `tex0 80AD5000 640x480 fmt 12` -- a guest *surface*, not an asset -- with
+  `out = r0 = t0` and alpha from that surface. Its dump is flat grey, i.e. the
+  surface holds nothing when it is sampled. That is the next thing to read: is
+  that pass a screen copy the runtime never filled, or an off-screen render
+  whose colour surface is a different VA than the one the sampler reads.
+
+## 2026-10-30 — the near-plane clip is not what hides the floor (A/B, negative)
+
+- Phase: gameplay (start-game stage, OpenGL back end), toolkit at 1c16a7d plus
+  this session's uncommitted executor/GL changes.
+- **A/B, same pad timeline** (`to-stage` + `rdown`/`lup` from 93 s, camera on
+  the ground): default near clip against `RECOMP_CLIP_NEAR_Z=0` (clip at
+  `w = 1e-3` only). Both runs reach the walk (`nz`: 290 dumps, pad t = 122 s,
+  29 fps, 5,025,862 triangles "dropped behind the eye" in the last block).
+  **The floor is missing in both.** The near-plane clipper is therefore not the
+  gate, and the earlier entry's "next: A/B `RECOMP_CLIP_NEAR_Z=0`" is answered:
+  negative.
+- **The stage-era probe budget was the mistake, not the probe.** `RECOMP_GL_PROBE`
+  took its 80 records in the front end, where every hit is a full-screen menu
+  or haze quad (flip 2-80: `n 6`, `depth 0`, `blend 1 302/303`, `alpha 1 204
+  ref 0`, `tex0 817D3000` SEGA logo). Its fourth field is a **starting flip**:
+  `RECOMP_GL_PROBE=320,440,60,1,1500` was run at the stage and the records at
+  flip 1500 are the cutscene's effect pass (`n 6`, three textures including the
+  `G8B8` 0x28 effect page, pre/post `00000000`). Aim it later than the landing
+  cutscene or it reports the cutscene, not the ground.
+- **New instrument, `RECOMP_PIXEL=x,y`** (`nv2a_pb_exec.c`): every fragment of
+  that pixel is logged with `why` (`depth`, `alphatst`, `paint`), the
+  interpolated z, the depth buffer's z, the depth/alpha state, the packed
+  colour, the stage-0 texture offset/format, the combiner stage program and
+  the triangle's box and vertex w. It is the executor's answer to
+  `RECOMP_GL_PROBE` and it costs one comparison per pixel. It only fires on
+  the **CPU rasteriser** path (`xf_rows`); with `RECOMP_PB_GL` on the executor
+  hands vertices to GL and never enters that loop, so a run that wants its
+  output has to be `RECOMP_PB_GL=0` — which does not reach the stage in a
+  capture window at ~4 fps.
+
+## 2026-10-30 — visibility queries answer 0 on the GL back end, and the pad aimed the camera at the sky
+
+- Phase: gameplay / stage, OpenGL back end, toolkit at 1c16a7d plus this
+  session's changes.
+- **`tools/pads/stage-walk.txt` aimed the camera the wrong way.** Every ground
+  capture since the file was written held `rdown` to "pitch the camera at the
+  floor". The maintainer corrected this twice: on this title the right stick
+  **up** (`rup`) pitches the view down; `rdown` looks at the bamboo canopy.
+  The timeline is fixed (all `rdown` entries are `rup`, with the reason in the
+  header) and the frames from `m1`/`gd` confirm it -- `rup` brings the player
+  and the trunks into a downward view instead of the open sky. Any earlier
+  capture read as "nothing covers the ground pixel" has to be re-read with
+  this in mind: several of them were pointed at the canopy.
+- **`GET_REPORT`'s `ZPASS_PIXEL_CNT` is always 0 when a back end draws.**
+  `s_gpu.zpass_count` is incremented only by the CPU rasteriser
+  (`xf_queue_flush` adds `cnt.zpass`); with `RECOMP_PB_GL` on, `xf_rows` never
+  runs, so the counter stays at its reset value and every visibility test the
+  title takes reads back "no pixels passed". A title culls what it is told is
+  invisible. This is the same shape as the Burnout 3 occlusion-culling bug the
+  report path was written for (`GET_REPORT` was never written at all there),
+  one layer further in: the report is written, with a number that always says
+  the opposite.
+- **Fix, both halves in this tree:** `nv2a_pb_gl.c` wraps each batch's
+  `glDrawArrays` in a `GL_SAMPLES_PASSED` query while the title has counting
+  enabled (`SET_ZPASS_PIXEL_COUNT_ENABLE` now forwards to the back end through
+  `nv2a_backend_zpass_enable`), and `nv2a_pb_exec.c` answers `GET_REPORT` with
+  the CPU counter **plus** the back end's total; `CLEAR_REPORT_VALUE` resets
+  both. With no multisampling a sample is a pixel, which is the unit
+  `ZPASS_PIXEL_CNT` counts.
+- **Bisect available:** `RECOMP_ZPASS_FORCE=<n>` answers every visibility test
+  with `n`. A run that draws the floor with a large `n` and not without it is
+  a title that culls on the query; a run that draws it neither way is not.
+
+## 2026-10-30 — answering every visibility query with 1,000,000 does not draw the floor
+
+- `RECOMP_ZPASS_FORCE=1000000` on the ground-facing timeline (`gd.pad`: the
+  stage at ~93 s, `rup` to pitch the camera down, `lup` to walk): the run
+  reaches the grove and the landing cutscene, 5,907 flips at 25-27 fps, and
+  **the floor is still missing**. The title does not cull the stage's ground on
+  the visibility query, so the corrected `ZPASS_PIXEL_CNT` answer (below) is a
+  fix for a real wrong answer, not the missing-floor fix.
+- Frames from the same run: bamboo, the player and an enemy stand in the
+  grove with the clear colour where the floor should be -- the same symptom
+  the CPU rasteriser shows, so the fault is still upstream of both back ends.
+- `README.md`'s Screens section now carries two captures from this build
+  (`docs/img/gl-menu-2026-10-30.png`, `docs/img/gl-stage-2026-10-30.png`),
+  captioned with what is and is not drawn, and the known-limitations bullet
+  says "floor" rather than "world" because the rest of the world does draw.
+
+## 2026-10-30 — instruments added, and two more bisects closed (both negative)
+
+- **`RECOMP_GL_BATCH=<minverts>,<minflip>[,<maxflip>]`** (`nv2a_pb_gl.c`,
+  `batch_census`): one line per batch whose screen box reaches the frame's
+  lower quarter, with the box, window z and w ranges, all four stage textures,
+  depth/blend/alpha state, the colour mask and the stage program. This is the
+  census that answers "is a sheet of geometry covering the floor at all"
+  without a per-pixel probe. At flips 5200-5260 the only batches reaching the
+  lower quarter are the shadow-volume passes (`mask 00000000`, `wmask 0`,
+  drawn twice with `face 404`/`405`) and the screen-sized effect quad
+  (`n 5766`, `tex0 80AD5000` 640x480, `stpar 00000001`).
+- **`RECOMP_GL_MASK_FORCE=1` closed negative.** Forcing colour writes on for a
+  batch whose colour mask arrived as 0 does not draw the floor. So the masked
+  batches are not the floor's colour pass.
+- **The GL probe at true gameplay flips.** `RECOMP_GL_PROBE=320,440,150,1,5200`
+  (the fifth field is the starting flip -- without it the records are spent in
+  the front end) lists, per frame, one `n 6` full-screen quad (`blend 1
+  302/303`, `alpha 1 204 ref 0`, `mask 01010101`) and the two shadow-volume
+  passes; the readback stays `00326400`, the clear colour. Nothing else covers
+  that pixel on the GL path, which is why the floor is not painted there.
+- **Hence the open question, stated as narrowly as the evidence allows:** the
+  batches that would draw the floor either never reach the pixel (the census
+  sees no terrain sheet in the lower quarter at gameplay flips, only the
+  shadow passes) or arrive with every fragment killed. The next measurement
+  has to name the batch the *title* draws the terrain with -- the D3D8 layer
+  says this title emits pushbuffers itself, so it is the stream that decides --
+  and that is where the next session should start.
+
+## 2026-10-30 — the z-range cull is off by default; it was never verified
+
+- `SET_ZMIN_MAX_CONTROL` is decoded (`s_gpu.zminmax`, `Nv2aRenderState`'s
+  `zclamp_en`/`clip_range_set`), and the GL shader can cull or clamp fragments
+  outside `CLIP_MIN..CLIP_MAX`. The **cull** mode is not verified on this
+  title -- if those registers hold a depth-buffer range rather than a
+  per-fragment one, culling on them removes visible geometry -- so it is now
+  behind `RECOMP_GL_ZCULL=1` and the default keeps the previous behaviour. The
+  clamp is behind `RECOMP_GL_ZCLAMP=1` for the same reason. A jump that makes a
+  model vanish, or a floor that is missing, must not be *caused* by an
+  unvalidated gate; this removes that variable from both.
+- Next for the "model goes invisible while jumping" report: the player's batch
+  is drawn near the eye plane, so the candidates are the near-plane clipper
+  (`raster_xf_clipped`), the `a[3] <= 0` drop in `raster_xf_triangle`, and the
+  `batch_is_screen_space()` fallback. `RECOMP_GL_ZCULL=0` (now the default)
+  rules the z-range cull out first; `RECOMP_CLIP_NEAR_Z=0` separates the
+  clipper; `RECOMP_XF_FLAT` / `RECOMP_GL_PROBE` on the airborne frame name the
+  batch that disappears.
+
+## 2026-10-30 — the frame-spanning coloured wedge is untransformed world geometry
+
+- Symptom: single frames, mostly during transitions and the stage, painted with
+  one huge triangle carrying R, G and B at its three vertices over the whole
+  picture (the "wipe quad" in the captures).
+- Cause: `raster_batch()`'s screen-space fallback. A MODE-0 batch with **no
+  composite matrix** is neither a program batch nor a fixed-function one, so it
+  reaches `batch_is_screen_space()`, whose test is only "does it overlap the
+  surface, and is it bigger than object space". World-space corners in the
+  thousands of units satisfy both, so the batch is drawn with its world
+  coordinates used as pixels: one corner lands off one side of the frame, one
+  off another, and the interpolated vertex colours fill what is left.
+- Fix: that fallback is now suppressed **for batches of 64 vertices or more**
+  (`batches_screen_fallback` counts them either way and the periodic report
+  prints the count). Small ones -- sprites, menu quads, which is what actually
+  arrives pre-transformed -- keep the old path. `RECOMP_NO_SCREEN_FALLBACK=1`
+  suppresses all of them, `RECOMP_SCREEN_FALLBACK=1` restores the old
+  behaviour for a bisect.
+- **Measured**, same pad timeline and every 10th frame, share of pixels whose
+  strongest channel differs from its weakest by more than 110 (the metric the
+  2026-10-30 far-plane entry used):
+  - baseline before this change (`s8`) worst frame **0.35**;
+  - fallback fully off (`wq`, 519 dumps, stage reached at pad 125 s,
+    731 big-batch fallbacks counted) worst frame **0.108**;
+  - the shipped default (64-vertex threshold) is `wq2`, same timeline.
+  The menus, the HUD, the grove and the haze are unchanged in both runs.
+- **Not shipped as a default (2026-10-30, after the run).** Suppressing the
+  fallback cut the metric but the maintainer reports the visible problem is
+  still there on the same build, and the late stage frames of `wq2` show the
+  world absent where a fade should be -- so the change is left **off by
+  default**: `RECOMP_NO_SCREEN_FALLBACK=1` suppresses every such batch and
+  `RECOMP_SCREEN_FALLBACK=1` suppresses only batches of 64 vertices and up.
+  Neither is the answer to the wedges; the metric moving is not the same as
+  the artifact going away, and this is the second time that distinction has
+  cost a session.
+
+## 2026-10-30 — the screen-space fallback is drawing world geometry, and it is not the floor
+
+- `RECOMP_BATCH_CLASS=10 RECOMP_BATCH_CLASS_MIN=150` on the ground-facing
+  timeline catches the batches that reach `raster_batch()`'s screen-space path,
+  and they are world geometry, not pixels:
+  `[CLASS] batch 109645 prg 109645 ffp 0: prim 6 n 291 -> SCREEN (mode 0x4
+  composite 0 inline 0) v0 102.434 8000.01 176.74 1 clip 640x480`.
+  A first vertex at **y = 8000** with w = 1 cannot be a pixel; drawn
+  untransformed it becomes the frame-spanning triangle.
+- The transform those batches wanted is in the vertex constant file, not in a
+  composite method: the same record prints `CMAT` **all zeros** while
+  `c[0]` holds a plausible matrix (`-0.00511 0.235472 0.971868 444.244`, …)
+  and `c[8]` a rotation (`0.5 0.888889 …`). So a MODE-0 batch with no
+  `SET_COMPOSITE_MATRIX` is not "pre-transformed screen space": it is a batch
+  whose transform was uploaded as constants and which this executor has no rule
+  for. Naming that rule -- which constant rows are world/view/projection for a
+  MODE-0 draw, or whether `SET_TRANSFORM_EXECUTION_MODE` 0x4 is itself the
+  program path -- is the next lead, and it is a better one than the fallback:
+  suppressing the fallback changes the picture (measured 0.35 -> 0.108 on the
+  strong-colour metric) but does **not** bring the floor, which is what the
+  maintainer's run said.
+
+## 2026-10-30 — running those MODE-0 batches as program batches makes the picture worse
+
+- `RECOMP_FFP_AS_PROGRAM=1` (run loaded program for MODE-0 batches with no
+  composite, 64 vertices and up, instead of drawing them untransformed) on the
+  ground-facing timeline: pad 111 s, 4,596 flips, 26.9 fps, 319 dumps. The
+  stage frames lose the grove entirely -- a thin sliver on a blue field where
+  the bamboo and the player should be -- so the program loaded at that moment
+  is not the transform those batches wanted. Closed negative; the switch is
+  env-gated and off by default.
+- That leaves the batch's transform as either the composite method the title
+  never writes, or a constant file this executor does not read for MODE-0
+  draws. The measured facts are in the entry above (`CMAT` all zeros, `c[0]`
+  and `c[8]` full of plausible matrix rows, first vertex y = 8000 with w = 1).
+
+## 2026-10-30 — stage reached in a GL run without the census, and a raw-world batch named
+
+- Phase: gameplay (OpenGL back end), `to-stage` pads plus `rup`/`lup` walking,
+  dump stride 3.
+- Result: the pad timeline (unchanged) reaches the stage at pad t=93003 ms, and
+  the walk is visible in the dumps: rocks, boulders, bamboo, the haze plane and
+  the HUD draw; the ground sheet under them does not, and the lower half of the
+  frame is the haze and the clear colour. So the timeline and the camera pitch
+  are not what has been hiding the floor in earlier sessions: the run arrives
+  and the floor is absent where the camera looks straight down at it.
+- New: `RECOMP_GL_BATCH_MAX=<n>` raises the census print budget. The menu's big
+  sprites exhausted the fixed 4000 lines by flip 2430, so a census aimed by
+  flip number alone never reached the stage. `RECOMP_GL_BATCH=64,1120,1260`
+  with the raised budget covers the first stage frames.
+- Noted while reading the census: a MODE-0 no-composite batch of 867 vertices
+  reaches the GL draw path with `w 1..1`, `z -4952.83..5253.85`, box
+  `-1175..9155 x -22683..8000` in a 640x480 surface — world coordinates used
+  as pixels, textured, depth test and depth write on. That is the raw-world
+  batch class the screen-space fallback draws, and it is the source of the
+  frame-spanning wedges. It is not yet identified as the terrain.
+- Note on run cost: while the attract movie plays the title advances its pad
+  clock at roughly 2.5 fps of game time per second of wall time, so a 330 s run
+  only reaches pad 38 s. Runs that must reach the stage need the movie skipped
+  or a ~5 min budget. `PAD: t=` in the log is the honest progress indicator.
+
+## 2026-10-30 — stage-era census taken: no large batch reaches the lower quarter, and the dropped-batch program path does not bring the floor
+
+- Two runs reached the stage (pad t=93000 ms is the transition; `PAD: t=` is the
+  only honest progress line in the log).
+- **The census is the finding — withdrawn, it was taken in the wrong place.**
+  `RECOMP_GL_BATCH=64,1100,1300` printed no line at all, but flip 1100-1300 is
+  the attract movie, not the stage: the stage arrives around flip 3500 in these
+  runs (the dump count at pad t=93000 is ~1200 at stride 3), and the pad
+  timeline runs out at 125 s, where the title puts up its own Retire prompt
+  with no input arriving. A census line missing there says nothing about the
+  terrain. `RECOMP_LOG_AFTER=<seconds>` now gates the census and the drop/class
+  reports on wall time instead of flip number, and the pad timeline keeps
+  playing past the stage with the A taps the Retire prompt needs.
+- **The dropped batches, tested directly.** `RECOMP_DROP_AS_PROGRAM=1`
+  (`nv2a_pb_exec.c`, in the `!batch_is_screen_space()` path) runs the loaded
+  vertex program on a batch that would otherwise be thrown away as "not
+  screen-space", instead of dropping it. On a full stage run this changed
+  nothing visible: the lower half of the frame at pad 112 s is still exactly the
+  clear colour `(0,50,100)`, with the same haze and rocks above it. The count of
+  dropped batches at that point is 23,315, and putting every one of them
+  through the program does not produce a floor. The switch stays off by default.
+- **Texture decode is not the fault.** `RECOMP_TEX_DUMP` on a stage run writes
+  64 distinct textures and every one decodes: the SEGA logo, the menus, the
+  player, the bamboo, the gravel ground texture, the HUD medallion, the light
+  shafts. Formats seen: `0x06/0x12` swizzled and linear 32-bit, `0x0C/0x0D/0x0E/
+  0x0F` DXT, `0x28`. No format falls through to the failure fill.
+- **Where this leaves it:** the terrain batches are gone before the transform
+  path. The next step is on the title's side of the executor: the batch that
+  should be the terrain must be named at the *pushbuffer* level (the title
+  emits its own pushbuffers, so `SET_BEGIN_END`/attribute/DMA ordering decides
+  what a batch is), not at the rasteriser. `RECOMP_XF_DROP_AT` with a batch id
+  measured at pad t≈93 s is the instrument; the batch ids to start from are
+  what the `[GPU]` summary prints as the drop counter.
+
+## 2026-10-30 — the terrain is submitted and draws; the pixel probe says so
+
+- Instrument: `RECOMP_GL_PROBE=<x>,<y>,<n>,<minv>,<minflip>` now honours
+  `RECOMP_LOG_AFTER`, and `RECOMP_GL_COMB_TEX0=<hex>` prints the combiner
+  record for batches whose stage-0 texture is that guest offset (the stage's
+  ground texture is `824EA000`, 512x512 DXT1, which decodes as gravel).
+- **What the probe shows at (320,440) during the walk (flip 5200).** In draw
+  order: a series of `mask 00000000` depth-only passes (shadow volumes,
+  `wmask 0`), a full-screen `n 6` blend quad, and then the terrain itself:
+  `n 330`, `mask 01010101`, `depth 1/203 wmask 1`, `blend 302/303`,
+  `alpha 1/204 ref 0`, `stpar 00020421`, `final 130C0300/00001C80`,
+  textures `824EA000` (512x512 DXT1), `82586000` (1024x1024 DXT1) and
+  `8255A000` (128x128 DXT5). Its vertices are where they should be
+  (`v0 322.5 441.8 z 1.64034e+07`), i.e. bottom-centre of the screen.
+- **The pixel changes when that batch draws**: `pre 00326400` (the clear
+  colour) to `post 0E1919FF` — dark, and opaque. So the terrain is not missing
+  from the stream, not culled, not clipped and not alpha-rejected: it paints a
+  nearly black colour and is then indistinguishable from the haze behind it.
+  Later ground batches paint `121317FF`, `152C2FFF`, `112A2EFF`; all dark.
+- **This is a colour fault, not a submission fault.** The next step is the
+  combiner evaluation for `stpar 00020421` (stages 0-2 program 1, stage 3
+  program 4 = PASSTHRU) and, in particular, the final combiner's fog input:
+  `final 130C0300` takes its A and C inputs from register 3 (fog), whose RGB
+  this runtime fills with the fog *colour* and whose name the stage sets to a
+  factor of 1.0 on these batches. `RECOMP_GL_COMB_TEX0=824EA000` prints that
+  batch's stage words now, which is the measurement to take next.
+- Caveat: several runs in this session were killed or stalled before the
+  stage; `PAD: t=` is the only reliable progress line, and a census/probe
+  armed without `RECOMP_LOG_AFTER` spends its budget in the attract movie.
+
+## 2026-10-30 — the terrain's combiner decoded: its colour depends on two textures
+
+`RECOMP_GL_COMB_TEX0=824EA000` on a stage run prints the terrain batch:
+
+```
+n 66 ... stpar 00020421 ctl 00011104 final 130C0300/00001C80 fog FF000000
+  stage 0 c C4C80000/000000C0  a D4D81010/000000C0
+  stage 1 c DA204B20/00000D00  a 00000000/00000000
+  stage 2 c CCCD0000/000000C0  a 00000000/00000000
+  stage 3 c C9CA20CC/00000C00  a 00000000/00000000
+  tex0 824EA000 512x512 fmt 0C | tex1 82586000 1024x1024 fmt 0C
+  tex2 8255A000 128x128 fmt 0F | tex3 (none)
+```
+
+Decoded with nv2a_combiner.h's rules (stage programs 1,1,1,4 = sample, sample,
+sample, passthru; the title's vertex colour is white and the fog factor is 1,
+which makes the final stage `out = r0`):
+
+- stage 0: `r0.rgb = v0 * v0`, `r0.a = v0.a * t0.a`
+- stage 1: `r1 = t2.a + (2*t3 - 1)` with `t3` the passthru coordinate
+- stage 2: `r0 *= r1`
+- stage 3: `r0 = t1 * t2 + r0`
+- final: `out.rgb = fog.rgb * (1 - factor) + r0 * factor`, i.e. `r0` at factor 1
+
+So the terrain's colour is `t1 * t2 + t2.a + 2*t3 - 1` where `t1` is a
+1024x1024 DXT1 texture (`82586000`) and `t2` a 128x128 DXT5 (`8255A000`).
+A black terrain therefore means `t1` (and/or `t2`) samples black -- the ground's
+own 512x512 DXT1 (`824EA000`) is not even in the final colour, it only
+contributes its alpha. Next measurement: `RECOMP_TEX_DUMP` those two offsets
+and compare with the reference art; `82586000` is 1024 wide with pitch 2560,
+which is the width of a 640-pixel 32-bit row, so the block addressing is the
+first thing to check.
+
+## 2026-11-01 — the "terrain" batch was the player; the floor class is a 960-vertex mesh the GL path drops on alpha
+
+- **Instrument (toolkit, working tree only).** `RECOMP_TEX_DUMP` now writes
+  every bound stage, not only stage 0 (`<seq>_s<stage>_<offset>_fmt<fmt>.bmp`),
+  because a batch's colour can come from any of the four. Two additions:
+  `RECOMP_TEX_DUMP_ALPHA=1` writes the alpha plane as greyscale (a DXT5 page
+  whose alpha gates the draw is otherwise indistinguishable from a page the
+  title wanted see-through), and `RECOMP_TEX_DUMP_ONLY=<hex>` keeps every other
+  texture out of the 64-entry inventory so the one behind a named batch still
+  gets dumped when the front end has filled the table.
+- **`824EA000` is a character/armour atlas, not gravel.** Dumped on a stage
+  run it is armour plates, a skull, a clawed gauntlet and red trim;
+  `82586000` (1024x1024) is the *same atlas* in greyscale (its specular /
+  detail page) and `8255A000` (128x128 DXT5) is a page of small glow spots.
+  The batch recorded on 2026-10-30 as "the terrain" — `n 330` at (320,440),
+  colour `t1*t2 + t2.a + 2*t3 - 1` — is therefore the **player**: colour
+  page times specular page. That entry's decode describes armour shading and
+  its "black floor" reading is withdrawn; the pixel it measured is the player
+  standing in the lower centre of the frame.
+- **The floor class, named.** With the pad timeline holding the stage
+  (`tools/pads/floor-walk.txt`, `rup` = camera down) the GL probe
+  `RECOMP_GL_PROBE=100,430` reports a **960-vertex / 933-triangle** mesh with
+  its box over the lower frame (`194..424 x 180..411`, and a second one at
+  `-90..549 10..649`), state `cull 0`, `depth 1 func 203 wmask 0`,
+  `blend 302/1`, `alpha 1 204 ref 0`, `stpar 00000001`, `final
+  0000000C/00001C80`. Its combiner words (`RECOMP_GL_COMB_TEX0=810AA000`):
+  stage 0 `c 08040000/00010C00 a 18140000/00000C00`, one stage
+  (`ctl 00000001`), which decodes to `rgb = 2 * t0 * v0` written to r0 and
+  `a = t0.a * v0.a`, with the final stage passing r0 through (colour from D =
+  r0, alpha from r0.a). Textures: `810AA000` 128x128 DXT5 (stage 0),
+  `82649000` 256x256 linear, `8250A000` 256x256 DXT5.
+- **That alpha plane is not empty.** `RECOMP_TEX_DUMP_ONLY=810AA000` with
+  `RECOMP_TEX_DUMP_ALPHA=1`: 244 distinct levels over the page, 2,836 of
+  16,384 texels zero. So "the page is empty" cannot explain a rejected
+  fragment.
+- **The GL path paints nothing there; forcing alpha paints it.** The probe
+  brackets the draw with readbacks: `pre 00326400` and `post 00326400`, i.e.
+  the batch is rasterised over the pixel and changes nothing. With
+  `RECOMP_GL_ALPHA_ONE=1` the same probe reads `post FFC3C5FF`. On the GL
+  side the gate is the fragment alpha, exactly as the 2026-10-29 note said —
+  but see the next point before calling it an alpha bug.
+- **The CPU rasteriser draws the ground on the same timeline.** `RECOMP_PB_GL=0`
+  with `RECOMP_PIXEL=100,430` prints `paint` fragments at that pixel
+  (`argb FF42054F`, `54A15A43`, ...) and the dumped frame at the landing
+  cutscene shows the textured water the player stands on, with ripples,
+  reflections and lanterns standing in it. So the executor and the data can
+  produce the floor; the two back ends disagree about this pixel.
+- **Not the render targets.** `RECOMP_TGT_LOG=1` lists four colour offsets the
+  title ever renders into: `00404000`, `00530000`, `00D62000` (flip 2083) and
+  `00CCC000` (flip 4701). `80AD5000` — the 640x480 surface the water and the
+  movie sample — is **never** a draw target, so its constant grey cannot be
+  fixed by a render-target path; it arrives by a copy or a CPU write.
+- **Next measurement (narrow).** The GL probe needs to print, for the triangle
+  it finds, the interpolated `v0`/`st0` and the stage-0 texel the CPU sampler
+  would return, so the alpha chain can be compared with the CPU's `[PIXEL]`
+  alpha for the same fragment. If they agree (both ~0), the CPU's painted
+  pixel comes from a different, full-frame batch and the search moves to the
+  batches the CPU paints with `box 0..640 0..480`; if they disagree, the GL
+  combiner is evaluating this configuration differently from the CPU's.
+- **Operational note.** A capture started as a plain background job is killed
+  when the agent's shell is cleaned up (SIGTERM at ~70-90 s, which looks
+  exactly like "the title never gets past PRESS START"). `setsid nohup ...
+  < /dev/null &` keeps it alive to the stage; every stage capture in this
+  session after that ran that way.
+
+## 2026-11-02 — the ground is one back end's alpha, and the texture decode is not the difference
+
+Continued from the 2026-11-01 finding (the 960-vertex ground mesh paints
+nothing on the OpenGL back end and paints under `RECOMP_GL_ALPHA_ONE`).
+
+- **The data is exonerated.** `nv2a_backend_decode_texture()` — the whole-texture
+  decode the GL back end uploads — is a loop over `sample_texture()`, the CPU
+  rasteriser's own sampler. Both back ends are therefore handed byte-identical
+  texels for the ground's stage 0; a decode difference cannot be the cause. The
+  same argument covers the combiner words, the vertex diffuse and the alpha
+  test's reference, which `apply_state()` normalises (`alpha_ref & 0xFF` over
+  255) exactly as the CPU's `alpha_test_pass()` compares them. What is left is
+  the fragment path of one back end, not the inputs to it.
+- **A real convention gap found on the way, and fixed.** Stage coordinates reach
+  a back end in two different units and the format decides which: the CPU's
+  `rc_texel()` multiplies by the size only for `tex_size_from_format()` formats
+  (swizzled, DXT) and leaves a linear format's coordinates in **texels**;
+  `fetch_texcoord()` says the same thing in words. The GL shader passed both
+  through `texture(c.xy / q)`, which wants [0,1], so every **linear** texture
+  wrapped and sampled the wrong corner. `gl_vert_fill()` now divides a stage
+  whose texture has a pitch (the title programs none for swizzled or DXT, which
+  have no rows) by that texture's size. The 640x480 linear movie surface is the
+  headline victim of this bug — it is the "black attract movie / two coloured
+  strips" entry — and the ground's DXT5 page is *not*, so this fix is recorded
+  as the movie's, pending a capture that shows it.
+- **Captured the stage on the GL back end** for `docs/img/gl-stage.png`
+  (`floor-walk`, stride 20, 952 frames): the player model, bamboo, haze and HUD
+  draw over the clear colour, with no ground under the player. That is the
+  honest current state, and the picture the open entry describes.
+- **Docs:** `MSVC_2022.md` was purged. Its build and boot record had already
+  been taken into `KNOWN_ISSUES.md` and its prerequisites into `RUNNING.md`,
+  and `README.md` carries the warning-wall and `/bigobj` notes; the file was a
+  historical checklist with nothing left that no other page says.

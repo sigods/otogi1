@@ -11,7 +11,6 @@ Start here, then follow the order.
 | `ARCHITECTURE.md` | You need to know which layer owns a behaviour. |
 | `BOOT_LOG.md` | You hit a crash — search it before debugging from scratch. |
 | `RUNNING.md` | Building, running, and recording the executable. |
-| `MSVC_2022.md` | You are building with Visual Studio, or want the Windows verification record. |
 | `KNOWN_ISSUES.md` | Your symptom may already be listed as an open blocker. |
 | `FAQ.md` | You are new and want the short answers first. |
 | `../CHANGELOG.md` | What changed, and when — check before assuming a behaviour is a regression. |

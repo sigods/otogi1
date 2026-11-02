@@ -41,7 +41,7 @@ and claim in this repository.
 
 ## Status
 
-Status as of 2026-10-27. Runs are headless, on Linux, through the OpenGL
+Status as of 2026-10-30. Runs are headless, on Linux, through the OpenGL
 push-buffer back end: `RECOMP_PB_EXEC=1 RECOMP_USB=1 RECOMP_AUTOPRESS=1
 ./build-linux/bin/otogi1` drives the title from the logos to the start-game
 stage with no pad and no window. A physical gamepad still works and is what
@@ -75,18 +75,26 @@ with a physical gamepad.
 | <img src="docs/img/start-stage.png" alt="Start-game stage" width="420"> | <img src="docs/img/pause-menu.png" alt="Pause menu" width="420"> |
 | **Start-game stage.** The player's 3D model is drawn. The stage world is not: the only scenery visible is bamboo. | **Pause menu.** Opened from the start-game stage. |
 
-<img src="docs/img/gl-stage.png" alt="Start-game stage through the OpenGL back end" width="640">
+<img src="docs/img/gl-menu-2026-10-30.png" alt="New Game / Load Game menu through the OpenGL back end" width="640">
 
-**The same stage through the OpenGL back end**, captured headlessly with
-`RECOMP_FB_DUMP` (`RECOMP_PB_EXEC=1 RECOMP_USB=1 RECOMP_AUTOPRESS=1`). The
-character, the HUD orb, the bamboo and the sword trail are drawn by the GPU;
-the world behind them is still missing, which is the open blocker.
+**The front end, 2026-10-30.** `New Game` / `Load Game`, drawn through the
+OpenGL push-buffer back end with the title's own register combiners and the
+player model behind the text. Captured headlessly with `RECOMP_FB_DUMP`
+(`RECOMP_PB_EXEC=1 RECOMP_USB=1 RECOMP_AC97_READY=1`).
+
+<img src="docs/img/gl-stage.png" alt="The bamboo grove on the start-game stage" width="640">
+
+**The start-game stage, same build.** The grove, the haze and the light shafts
+are the title's own geometry, drawn by the GPU; the **floor under the player is
+still missing** and reads as the clear colour. That is the open blocker. The
+capture replaces the 2026-10-28 one, which was taken while the front-face
+winding was still mirrored and so showed the inside of every trunk.
 
 The open blockers behind these limits are tracked in [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
 
 ## Known limitations
 
-- **The stage world is not drawn.** The player's 3D model, the HUD and the bamboo are drawn on the start-game stage; the rest of the world is not, and shows as large flat polygons. Both rasterisers (CPU and OpenGL) show the same thing from the same decoded batches, so the fault is in what the executor builds, not in the back end. See [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
+- **The stage's floor is not drawn.** The player's 3D model, the HUD, the bamboo, the haze and the light shafts are drawn on the start-game stage; the floor under the player is not, and reads as the clear colour. Both rasterisers (CPU and OpenGL) show the same thing from the same decoded batches, so the fault is in what the executor builds or in what the title submits, not in the back end. The visibility-question path (`ZPASS_PIXEL_CNT`) used to answer 0 to every query whenever a back end drew, which is an instruction to cull; it is answered from the GPU now. See [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
 - **Black screen after New Game.** Two runs on 2026-10-24 showed a black screen after the menu pan-out delay: one plain, one with `RECOMP_GUEST_LOCK=1`. Neither had `RECOMP_AC97_READY=1`. Repeated maintainer runs with `RECOMP_AC97_READY=1` did not show it. That switch is the only difference recorded, so it is a correlation, not an established cause. Stderr from a black-screen run has not been captured. See [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
 - **The dispatch gate is a project default, not a toolkit one.** `src/game/main.c` sets `RECOMP_DISPATCH_GATE=1` because this title's USB stack self-links its software queue on a multi-core host without it (`docs/BOOT_LOG.md`, 2026-10-26). `RECOMP_DISPATCH_GATE=0` still overrides. The gate is opt-in in the toolkit because it changes when DPCs and interrupts run for every title.
 - **The OpenGL back end approximates the material path.** It samples texture stage 0 and multiplies by the interpolated vertex colour; the CPU rasteriser evaluates the title's register combiners and fog. Titles or scenes whose look depends on those draw differently, and the stage world's materials are untested against a correct reference.
@@ -282,7 +290,6 @@ Every switch is an environment variable, read once at startup. The table below l
 - [`docs/FAQ.md`](docs/FAQ.md) — the short answers, if you want them first.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — which layer owns a behaviour.
 - [`docs/PIPELINE.md`](docs/PIPELINE.md) — the toolchain, step by step.
-- [`docs/MSVC_2022.md`](docs/MSVC_2022.md) — the Windows MSVC 2022 build and boot record.
 - [`docs/RUNNING.md`](docs/RUNNING.md) — building, running and recording the executable, in long form.
 - [`docs/TITLE_OTOGI.md`](docs/TITLE_OTOGI.md) — title facts and open unknowns.
 - [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) — what is blocking progress now.

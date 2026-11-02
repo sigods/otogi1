@@ -1,0 +1,115 @@
+# The front end, then gameplay with the camera pitched at the floor.
+#
+# `to-stage` stops its A taps at 84.2 s because an A after the stage is up is
+# an attack. What it cannot express is the title's own Restart/Retire menu
+# ("Restart Stage / Back to Main Menu / Retire"), which opens a few seconds
+# after the landing with no pad input and swallows the camera: frames 1180/1212
+# of the 2026-11-01 stage-walk run are that menu, and the walk never happened.
+#
+# A answers "Yes" there and restarts the stage, so the menu comes straight
+# back. B is the way out, and it has to be pressed *repeatedly* -- the menu
+# opens again after its own idle delay -- so this timeline answers it every
+# eight seconds while alternating `lup` (walk) and `rup` (right stick up pitches
+# the view down). Times are milliseconds from the title's first pad read.
+
+1500:START:300
+3500:START:300
+5000:A:300
+6200:A:300
+7400:A:300
+8600:A:300
+9800:A:300
+11000:A:300
+12200:A:300
+13400:A:300
+14600:A:300
+15800:A:300
+17000:A:300
+18200:A:300
+19400:A:300
+20600:A:300
+21800:A:300
+23000:A:300
+24200:A:300
+25400:A:300
+26600:A:300
+27800:A:300
+29000:A:300
+30200:A:300
+31400:A:300
+32600:A:300
+33800:A:300
+35000:A:300
+36200:A:300
+37400:A:300
+38600:A:300
+39800:A:300
+41000:A:300
+42200:A:300
+43400:A:300
+44600:A:300
+45800:A:300
+47000:A:300
+48200:A:300
+49400:A:300
+51800:A:300
+53000:A:300
+54200:A:300
+55400:A:300
+56600:A:300
+57800:A:300
+59000:A:300
+60200:A:300
+61400:A:300
+62600:A:300
+63800:A:300
+65000:A:300
+66200:A:300
+67400:A:300
+68600:A:300
+69800:A:300
+71000:A:300
+72200:A:300
+73400:A:300
+74600:A:300
+75800:A:300
+77000:A:300
+78200:A:300
+79400:A:300
+80600:A:300
+81800:A:300
+83000:A:300
+84200:A:300
+
+90000:B:300
+92000:rup:8000
+100000:B:300
+102000:lup:8000
+110000:B:300
+112000:rup:8000
+120000:B:300
+122000:lup:8000
+130000:B:300
+132000:rup:8000
+140000:B:300
+142000:lup:8000
+150000:B:300
+152000:rup:8000
+160000:B:300
+162000:lup:8000
+170000:B:300
+172000:rup:8000
+180000:B:300
+182000:lup:8000
+190000:B:300
+192000:rup:8000
+200000:B:300
+202000:lup:8000
+210000:B:300
+212000:rup:8000
+220000:B:300
+222000:lup:8000
+230000:B:300
+232000:rup:8000
+240000:B:300
+242000:lup:8000

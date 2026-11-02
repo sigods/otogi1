@@ -8,6 +8,9 @@
 #   STRIDE=1 tools/capture.sh to-stage 120 # every flip (about 1 MB each)
 #   EXTRA_ENV="RECOMP_GL_NO_COMB=1" tools/capture.sh stage-walk 200
 #
+# Output goes to ${TMPDIR:-/tmp}/otogi-runs/<scenario> unless a third argument
+# names a directory.
+#
 # The scenario names a pad timeline in tools/pads/<scenario>.txt, in
 # RECOMP_PAD_SCRIPT syntax: `<ms>:<button>[+...][:<hold ms>]` from the title's
 # first pad read. Two names are composed: `stage-walk` is `to-stage` followed by
@@ -44,7 +47,9 @@ PADDIR=$ROOT/tools/pads
 
 SCEN=${1:-to-stage}
 SECS=${2:-200}
-OUT=${3:-$ROOT/runs/$SCEN}
+# Captures are large (a stride-1 minute is ~1.5 GB), so they land in the
+# temporary directory by default: pass an outdir to keep one.
+OUT=${3:-${TMPDIR:-/tmp}/otogi-runs/$SCEN}
 STRIDE=${STRIDE:-3}
 
 if [ ! -x "$BIN" ]; then
@@ -79,6 +84,11 @@ mkdir -p "$OUT"
 export RECOMP_PB_EXEC=1
 export RECOMP_USB=1
 export RECOMP_AC97_READY=1
+# Captures are headless: the emulated APU still runs, but the mixed output
+# must not go through a real ALSA device, which stalls a run on a busy box.
+# Always the dummy device: a capture is read, not listened to, and a real
+# ALSA device stalls the run on a busy machine.
+export SDL_AUDIODRIVER=dummy
 export RECOMP_PAD_SCRIPT="@$PAD"
 export RECOMP_FB_DUMP="$OUT/f"
 export RECOMP_FB_DUMP_FLIPS="$OUT/go"
