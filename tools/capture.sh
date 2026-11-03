@@ -58,13 +58,21 @@ if [ ! -x "$BIN" ]; then
 fi
 
 case $SCEN in
-    stage-walk) PADFILES="$PADDIR/to-stage.txt $PADDIR/stage-walk.txt" ;;
-    *)          PADFILES="$PADDIR/$SCEN.txt" ;;
+    stage-walk) PADFILES=("$PADDIR/to-stage.txt" "$PADDIR/stage-walk.txt") ;;
+    *)          PADFILES=("$PADDIR/$SCEN.txt") ;;
 esac
-for f in $PADFILES; do
+for f in "${PADFILES[@]}"; do
     if [ ! -f "$f" ]; then
         printf 'capture: no pad timeline %s\n' "$f" >&2
-        printf 'capture: scenarios are %s\n' "$(ls "$PADDIR" | sed 's/\.txt//' | tr '\n' ' ')" >&2
+        # A list built from the directory itself, not from `ls`, so a name
+        # with a space or a newline in it cannot split into two entries.
+        known=""
+        for pad in "$PADDIR"/*.txt; do
+            [ -e "$pad" ] || continue
+            pad=${pad##*/}
+            known="$known ${pad%.txt}"
+        done
+        printf 'capture: scenarios are%s\n' "$known" >&2
         exit 1
     fi
 done
@@ -74,7 +82,7 @@ done
 # first entry it cannot read, so comments and blanks are stripped here rather
 # than left to trip it: `script entry without <ms>: at "# Title screen..."`.
 PAD=$(mktemp "${TMPDIR:-/tmp}/otogi-pad-XXXXXX.txt")
-cat $PADFILES | grep -v '^[[:space:]]*#' | grep -v '^[[:space:]]*$' > "$PAD"
+grep -hv -e '^[[:space:]]*#' -e '^[[:space:]]*$' "${PADFILES[@]}" > "$PAD"
 trap 'rm -f "$PAD"' EXIT
 
 rm -rf "$OUT"
@@ -97,15 +105,19 @@ export RECOMP_XF_THREADS=${XF_THREADS:-$(( $(nproc) > 8 ? 6 : 3 ))}
 # EXTRA_ENV is for a one-off bisect (RECOMP_GL_NO_DEPTH=1 and friends). It is
 # split deliberately: it is a list of assignments, not a shell command.
 if [ -n "${EXTRA_ENV:-}" ]; then
-    for kv in $EXTRA_ENV; do export "$kv"; done
+    # shellcheck disable=SC2086  # deliberate: a list of KEY=VALUE assignments
+    for kv in $EXTRA_ENV; do export "${kv?}"; done
 fi
 
 printf 'capture: %s -> %s for %ss (stride %s)\n' "$SCEN" "$OUT" "$SECS" "$STRIDE"
-printf 'capture: pads %s\n' "$PADFILES"
+printf 'capture: pads %s\n' "${PADFILES[*]}"
 timeout "$SECS" "$BIN" > "$OUT/log.txt" 2>&1
 rc=$?
 
-frames=$(ls "$OUT"/f*.bmp 2>/dev/null | wc -l)
+frames=0
+for f in "$OUT"/f*.bmp; do
+    [ -e "$f" ] && frames=$((frames + 1))
+done
 flips=$(grep -c '\[FB\] frame' "$OUT"/log.txt 2>/dev/null)
 lastpad=$(grep -o 'PAD: t=[0-9]* ms' "$OUT"/log.txt 2>/dev/null | tail -1)
 printf 'capture: exit %s, %s frames dumped, %s flips, %s\n' \
