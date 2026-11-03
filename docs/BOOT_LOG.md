@@ -2022,3 +2022,76 @@ nothing on the OpenGL back end and paints under `RECOMP_GL_ALPHA_ONE`).
   been taken into `KNOWN_ISSUES.md` and its prerequisites into `RUNNING.md`,
   and `README.md` carries the warning-wall and `/bigobj` notes; the file was a
   historical checklist with nothing left that no other page says.
+
+## 2026-11-02 — the ground paints black because its vertex colour arrives black
+
+- **Two frames had been read as "the stage", and both were wrong.** The
+  `to-stage` capture's landings (`f00075`..`f00086`, flips 3000-3400) all look
+  *up*: bamboo canopy, sky and haze, no ground in the frustum at all. The
+  frames after them are the title's own Retire menu, whose background is a
+  **static image**, so nothing behind that overlay is 3D and no reading of it
+  says anything about the floor. The `floor-walk` camera (`rup`) is the only
+  capture that aims at the ground.
+- **Instrument (toolkit, working tree).** `RECOMP_GL_PROBE` takes a sixth
+  field, `maxflip`, so a probe no longer spends its record budget on the front
+  end and the attract movie. `x,y[,n[,minverts[,minflip[,maxflip]]]]`.
+- **The ground is drawn, and it is drawn black.** At flip 3788 a batch of 462
+  vertices covers the lower half (`box 208..366 158..689`, `w` 29 000-23 000)
+  and the probe brackets its draw: `pre 00326400` -> `post 000D16FF`. The next
+  one (`n 525`) covers the same pixel and changes nothing. So the terrain is
+  submitted, transformed, not culled, not clipped and not alpha-rejected.
+- **Cause: `col FF000000`.** The census prints that batch's first vertex
+  colour, and it is opaque black; the pixel it paints is
+  `(0, 13, 22)`, i.e. the combiner's output with a black `v0`. The terrain's
+  combiner (decoded 2026-10-30) is `r0.rgb = 2 * t0 * v0`, so a black `v0`
+  makes the terrain black whatever the texture holds. For contrast, the
+  960-vertex floor mesh in the same scene arrives with `col 30808080`
+  (`rgb` 0.5 grey, alpha 0.19) and its combiner (`stage 0 c 08040000/00010C00`,
+  `a 18140000/00000C00`, `final 0000000C/00001C80`) reads
+  `out.rgb = 2*t0*v0`, `out.a = t0.a*v0.a` -- a *lit* vertex, which is what
+  the terrain's ought to be.
+- **So the fault is the vertex program's colour output (`oD0`), not the
+  texture, the transform or the combiner.** A black `v0` is a lighting result:
+  `nv2a_vsh_interp.c` copies `outregs[3]` (oD0) and clamps it, and
+  `pack_color()` turns it into `FF000000` only when nothing wrote it.
+- **Next measurement:** `RECOMP_VSH_TRACE=<n>` with `RECOMP_LOG_AFTER` aimed at
+  the flips the terrain batches appear in, and `RECOMP_VSH_DUMP=1`, to see
+  whether the program those batches run writes `o[3]` at all and, if it does,
+  which MAC / ILU pair is producing zero. A program that never writes `oD0`
+  while the hardware would leave the vertex colour at 1 is the other
+  possibility, and the disassembly separates them.
+- **Not committed:** `nv2a_pb_core.{h,c}` (the shared back-end core the GL
+  path now uses for targets, textures, vertex fill and the combiner payload)
+  is still uncommitted in the submodule, and `RECOMP_FFP_AS_PROGRAM` stays off
+  by default -- a run with it on transforms the dropped batches and still
+  leaves the lower half of the frame the clear colour.
+
+## 2026-11-02 — the ground's black is a lighting sum that comes out ≤ 0
+
+- **Instrument (toolkit, working tree).** `RECOMP_XF_BLACK` prints the first
+  batch of 256+ vertices whose vertex program *produced* a black diffuse
+  colour: every attribute it read, the values fetched for vertex 0, the
+  constants its program uses, and the disassembly. Nothing else separates
+  "the title submitted black" from "the program computed black".
+- **The terrain's program, read off the dump:** `R2 = c[128] + Σ max(N·L_i,0)
+  * c[133+i]`, then `oD0.rgb = (c[95]*v2 + c[94]).rgb * R2.rgb` and
+  `oD0.a = c[95].w * v2.w * c[90].w`.
+- **Measured, for the batch that covers the ground pixel** (n 456, `prim 6`,
+  `mode 0x6`, tex0 `0x8224B000`): `c[95] = 1 1 1 1` and `c[94] = 0`, so the
+  material is white and `v2` (the vertex colour) is white — neither is the
+  zero. `c[128] = -0.478 -0.173 -0.114`: the ambient term is **negative**.
+  `c[129..132]` are unit light directions with positive Y, and the model-view
+  Y row is `(0,-1,0,-20022)`, so the mesh's up normal `(0,1,0)` reaches the
+  lights as `(0,-1,0)`: every `N·L` is negative, `max()` zeroes all four, and
+  the sum is exactly `c[128]`. `oD0.rgb` clamps to 0 — `col FF000000`, the
+  value the probe has printed all along.
+- **What this does not yet separate:** whether the negative ambient is the
+  title's own constant (making the eye-space normal the fault) or the
+  constant is right and the model-view/light space is ours. Both readings fit
+  the numbers, and neither can be chosen by inspection.
+- **Next step needs the oracle:** xemu + GDB on the same stage frame, reading
+  `c[128..136]` out of the NV2A constant file and the vertex's transformed
+  normal, or a paired capture of a *lit* batch in the same frame running the
+  *same* program — differing only in its inputs indicts the fetch/normal,
+  differing in its constants indicts the upload. Parked there deliberately;
+  no renderer was changed for it.
